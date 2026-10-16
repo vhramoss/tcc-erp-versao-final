@@ -1,0 +1,261 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Empresa {
+  id            String   @id @default(uuid())
+  nome          String
+  cnpj          String   @unique
+  email         String   @unique
+  telefone      String?
+  endereco      String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  usuarios          Usuario[]
+  clientes          Cliente[]
+  fornecedores      Fornecedor[]
+  departamentos     Departamento[]
+  produtos          Produto[]
+  estoques          Estoque[]
+  pedidos           Pedido[]
+  financeiros       TransacaoFinanceira[]
+  usuarioPerms      UsuarioPermissao[]
+  
+  // Relações inversas obrigatórias no Prisma 7:
+  pessoas           Pessoa[]
+  categorias        CategoriaProduto[]
+  precos            PrecoProduto[]
+  estoqueMovimentos EstoqueMovimento[]
+  itensPedido       ItemPedido[]
+}
+
+model Pessoa {
+  id            String   @id @default(uuid())
+  idEmpresa     String
+  nome          String
+  email         String
+  cpfCnpj       String
+  telefone      String?
+  endereco      String?
+  tipo          String   // 'FISICA' ou 'JURIDICA'
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  empresa       Empresa  @relation(fields: [idEmpresa], references: [id])
+
+  cliente       Cliente?
+  fornecedor    Fornecedor?
+  usuario       Usuario?
+
+  @@unique([idEmpresa, cpfCnpj])
+  @@unique([idEmpresa, email])
+}
+
+model Cliente {
+  id            String   @id @default(uuid())
+  idEmpresa     String
+  pessoaId      String   @unique
+  codigo        String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  empresa       Empresa  @relation(fields: [idEmpresa], references: [id])
+  pessoa        Pessoa   @relation(fields: [pessoaId], references: [id])
+  pedidos       Pedido[]
+}
+
+model Fornecedor {
+  id            String   @id @default(uuid())
+  idEmpresa     String
+  pessoaId      String   @unique
+  codigo        String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  empresa       Empresa  @relation(fields: [idEmpresa], references: [id])
+  pessoa        Pessoa   @relation(fields: [pessoaId], references: [id])
+}
+
+model Usuario {
+  id            String   @id @default(uuid())
+  idEmpresa     String
+  pessoaId      String   @unique
+  username      String
+  password      String
+  ativo         Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  empresa       Empresa  @relation(fields: [idEmpresa], references: [id])
+  pessoa        Pessoa   @relation(fields: [pessoaId], references: [id])
+  permissoes    UsuarioPermissao[]
+
+  @@unique([idEmpresa, username])
+}
+
+model Departamento {
+  id            String   @id @default(uuid())
+  idEmpresa     String
+  nome          String
+  sigla         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  empresa       Empresa  @relation(fields: [idEmpresa], references: [id])
+}
+
+model Permissao {
+  id            String   @id @default(uuid())
+  nome          String   @unique
+  descricao     String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  usuarios      UsuarioPermissao[]
+}
+
+model UsuarioPermissao {
+  id            String   @id @default(uuid())
+  idEmpresa     String
+  usuarioId     String
+  permissaoId   String
+  createdAt     DateTime @default(now())
+
+  empresa       Empresa    @relation(fields: [idEmpresa], references: [id])
+  usuario       Usuario    @relation(fields: [usuarioId], references: [id])
+  permissao     Permissao  @relation(fields: [permissaoId], references: [id])
+
+  @@unique([usuarioId, permissaoId])
+}
+
+model CategoriaProduto {
+  id            String   @id @default(uuid())
+  idEmpresa     String
+  nome          String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  empresa       Empresa  @relation(fields: [idEmpresa], references: [id])
+  produtos      Produto[]
+}
+
+model Produto {
+  id            String   @id @default(uuid())
+  idEmpresa     String
+  categoriaId   String
+  nome          String
+  descricao     String?
+  sku           String
+  precoCusto    Decimal  @db.Decimal(10, 2)
+  estoqueMinimo Decimal  @db.Decimal(12, 3) @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  empresa       Empresa          @relation(fields: [idEmpresa], references: [id])
+  categoria     CategoriaProduto @relation(fields: [categoriaId], references: [id])
+  estoques      Estoque[]
+  itensPedido   ItemPedido[]
+  precos        PrecoProduto[]
+
+  @@unique([idEmpresa, sku]) // Unicidade de SKU por Tenant
+}
+
+model PrecoProduto {
+  id           String   @id @default(uuid())
+  idEmpresa    String
+  produtoId    String
+  nomeTabela   String   @default("Padrão") // Ex: "Padrão", "Atacado", "Revenda"
+  precoVenda   Decimal  @db.Decimal(10, 2)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  empresa      Empresa  @relation(fields: [idEmpresa], references: [id])
+  produto      Produto  @relation(fields: [produtoId], references: [id], onDelete: Cascade)
+
+  @@unique([idEmpresa, produtoId, nomeTabela])
+  @@index([idEmpresa, produtoId])
+}
+
+model Estoque {
+  id                String   @id @default(uuid())
+  idEmpresa         String
+  produtoId         String
+  quantidade        Decimal  @db.Decimal(12, 3) @default(0)
+  ultimaAtualizacao DateTime @updatedAt
+
+  empresa           Empresa  @relation(fields: [idEmpresa], references: [id])
+  produto           Produto  @relation(fields: [produtoId], references: [id])
+  movimentacoes     EstoqueMovimento[]
+
+  @@unique([idEmpresa, produtoId])
+}
+
+model EstoqueMovimento {
+  id            String   @id @default(uuid())
+  idEmpresa     String
+  estoqueId     String
+  usuarioId     String
+  qtdAnterior   Decimal  @db.Decimal(12, 3)
+  qtdModificada Decimal  @db.Decimal(12, 3)
+  observacao    String
+  createdAt     DateTime @default(now())
+
+  empresa       Empresa  @relation(fields: [idEmpresa], references: [id])
+  estoque       Estoque  @relation(fields: [estoqueId], references: [id])
+}
+
+model Pedido {
+  id            String   @id @default(uuid())
+  idEmpresa     String
+  clienteId     String
+  dataPedido    DateTime @default(now())
+  status        String
+  valorTotal    Decimal  @db.Decimal(12, 2)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  empresa       Empresa      @relation(fields: [idEmpresa], references: [id])
+  cliente       Cliente      @relation(fields: [clienteId], references: [id])
+  itens         ItemPedido[]
+  financeiro    TransacaoFinanceira?
+
+  @@index([idEmpresa, dataPedido]) // Índice para performance de listagem de pedidos
+}
+
+model ItemPedido {
+  id            String   @id @default(uuid())
+  idEmpresa     String
+  pedidoId      String
+  produtoId     String
+  quantidade    Decimal  @db.Decimal(12, 3)
+  valorUnitario Decimal  @db.Decimal(10, 2)
+  valorTotal    Decimal  @db.Decimal(12, 2)
+
+  empresa       Empresa  @relation(fields: [idEmpresa], references: [id])
+  pedido        Pedido   @relation(fields: [pedidoId], references: [id])
+  produto       Produto  @relation(fields: [produtoId], references: [id])
+}
+
+model TransacaoFinanceira {
+  id             String    @id @default(uuid())
+  idEmpresa      String
+  pedidoId       String?   @unique // Obrigatório @unique para relação 1-para-1 opcional no Prisma 7
+  descricao      String
+  valor          Decimal   @db.Decimal(12, 2)
+  tipo           String
+  dataVencimento DateTime
+  dataPagamento  DateTime?
+  status         String
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  empresa        Empresa   @relation(fields: [idEmpresa], references: [id])
+  pedido         Pedido?   @relation(fields: [pedidoId], references: [id])
+
+  @@index([idEmpresa, dataVencimento]) // Índice para performance de fluxo de caixa
+}
