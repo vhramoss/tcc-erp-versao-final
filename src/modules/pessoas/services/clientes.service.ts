@@ -1,7 +1,7 @@
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
-import { PrismaService } from '../../prisma/prisma.service';
+import { PrismaService } from '../../../prisma/prisma.service';
 import { CreatePessoaDto, UpdatePessoaDto } from '../dto/pessoa.dto';
-import { UserContext } from '../../common/decorators/current-user.decorator';
+import { UserContext } from '../../../common/decorators/current-user.decorator';
 
 @Injectable()
 export class ClientesService {
@@ -10,37 +10,30 @@ export class ClientesService {
   async create(user: UserContext, dto: CreatePessoaDto) {
     const { idEmpresa } = user;
 
-    return await this.prisma.$transaction(async (tx) => {
-      // 1. Criar a Pessoa primeiro
+    return this.prisma.$transaction(async (tx) => {
+      // 1. Cria a Pessoa primeiro
       const pessoa = await tx.pessoa.create({
-        data: {
-          ...dto,
-          idEmpresa,
-        },
+        data: { ...dto, idEmpresa },
       });
 
-      // 2. Vincular como Cliente
-      return await tx.cliente.create({
-        data: {
-          idEmpresa,
-          pessoaId: pessoa.id,
-        },
+      // 2. Vincula como Cliente
+      return tx.cliente.create({
+        data: { idEmpresa, pessoaId: pessoa.id },
+        include: { pessoa: true },
       });
     });
   }
 
   async findAll(user: UserContext) {
-    const { idEmpresa } = user;
     return this.prisma.cliente.findMany({
-      where: { idEmpresa },
+      where: { idEmpresa: user.idEmpresa },
       include: { pessoa: true },
     });
   }
 
   async findOne(user: UserContext, id: string) {
-    const { idEmpresa } = user;
     const cliente = await this.prisma.cliente.findFirst({
-      where: { id, idEmpresa },
+      where: { id, idEmpresa: user.idEmpresa },
       include: { pessoa: true },
     });
 
@@ -49,7 +42,7 @@ export class ClientesService {
   }
 
   async update(user: UserContext, id: string, dto: UpdatePessoaDto) {
-    const { idEmpresa } = user;
+    // findOne já garante que o cliente pertence à empresa do usuário
     const cliente = await this.findOne(user, id);
 
     return this.prisma.pessoa.update({
@@ -59,12 +52,11 @@ export class ClientesService {
   }
 
   async delete(user: UserContext, id: string) {
-    const { idEmpresa } = user;
     const cliente = await this.findOne(user, id);
 
-    // REGRA DE NEGÓCIO: Impedir exclusão se houver pedidos
+    // REGRA DE NEGÓCIO: impedir exclusão se houver pedidos
     const pedidosCount = await this.prisma.pedido.count({
-      where: { clienteId: cliente.id },
+      where: { clienteId: cliente.id, idEmpresa: user.idEmpresa },
     });
 
     if (pedidosCount > 0) {

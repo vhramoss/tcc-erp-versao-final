@@ -1,23 +1,30 @@
+import 'dotenv/config';
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
-import { AppModule } from './app.module'
+import { AppModule } from './app.module';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
 import { SanitizeInterceptor } from './common/interceptors/sanitize.interceptor';
+import { PrismaExceptionFilter } from './common/filters/prisma-exception.filter';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  // CONFIGURAÇÃO GLOBAL DE VALIDAÇÃO
-  app.useGlobalPipes(new ValidationPipe({
-    whitelist: true,            // Remove campos que não estão no DTO
-    forbidNonWhitelisted: true, // Lança erro se houver campos extras
-    transform: true,            // Transforma tipos automaticamente (ex: string para number/date)
-  }));
+  // VALIDAÇÃO GLOBAL DOS DTOs
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true, // Remove campos que não estão no DTO
+      forbidNonWhitelisted: true, // Lança erro se houver campos extras
+      transform: true, // Converte tipos automaticamente (ex: string -> number)
+    }),
+  );
 
-  // REGISTRO GLOBAL DO INTERCEPTOR DE RESPOSTA
-  app.useGlobalInterceptors(new TransformInterceptor());
-  app.useGlobalInterceptors(new SanitizeInterceptor());
-  await app.listen(3000);
+  // Converte erros do Prisma (P2002, P2025...) em respostas HTTP corretas (409, 404...)
+  app.useGlobalFilters(new PrismaExceptionFilter());
+
+  // Sanitiza o body (trim) e padroniza o formato de resposta { success, data, timestamp }
+  app.useGlobalInterceptors(new SanitizeInterceptor(), new TransformInterceptor());
+
+  await app.listen(process.env.PORT ?? 3000);
 }
 
 bootstrap();

@@ -1,6 +1,6 @@
-import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
 import { CurrentUser, UserContext } from '../../../common/decorators/current-user.decorator';
-import { CreateFinanceiroDto, FiltroFluxoCaixaDto } from '../dto/financeiro.dto';
+import { CreateFinanceiroDto, FiltroFluxoCaixaDto, FiltroTransacoesDto } from '../dto/financeiro.dto';
 import { FinanceiroService } from '../services/financeiro.service';
 
 @Controller('financeiro')
@@ -12,9 +12,19 @@ export class FinanceiroController {
     return this.financeiroService.criarTransacao(user, dto);
   }
 
+  @Get('transacoes')
+  listar(@CurrentUser() user: UserContext, @Query() filtro: FiltroTransacoesDto) {
+    return this.financeiroService.listar(user, filtro);
+  }
+
   @Patch('baixa/:id')
-  darBaixa(@CurrentUser() user: UserContext, @Param('id') id: string) {
+  darBaixa(@CurrentUser() user: UserContext, @Param('id', ParseUUIDPipe) id: string) {
     return this.financeiroService.darBaixa(user, id);
+  }
+
+  @Patch('cancelar/:id')
+  cancelar(@CurrentUser() user: UserContext, @Param('id', ParseUUIDPipe) id: string) {
+    return this.financeiroService.cancelar(user, id);
   }
 
   @Get('fluxo-caixa')

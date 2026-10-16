@@ -7,5 +7,7 @@ import { PrismaModule } from '../../prisma/prisma.module';
   imports: [PrismaModule],
   controllers: [FinanceiroController],
   providers: [FinanceiroService],
+  // Exportado para o módulo de Pedidos (passo 4) gerar/cancelar lançamentos dentro da transação.
+  exports: [FinanceiroService],
 })
 export class FinanceiroModule {}

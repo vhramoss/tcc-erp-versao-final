@@ -2,14 +2,17 @@ import { Injectable } from '@nestjs/common';
 import Decimal from 'decimal.js';
 import { PrismaService } from '../../prisma/prisma.service';
 import { UserContext } from '../../common/decorators/current-user.decorator';
+import { estaNoMinimoOuAbaixo } from './estoque-regras';
 
 @Injectable()
 export class EstoqueAlertService {
   constructor(private readonly prisma: PrismaService) {}
 
+  /** Lista produtos cujo saldo total (almoxarifados ativos) atingiu ou ficou abaixo do mínimo. */
   async getProdutosAbaixoDoMinimo(user: UserContext) {
     const produtos = await this.prisma.produto.findMany({
-      where: { idEmpresa: user.idEmpresa },
+      // Só carrega produtos monitorados (mínimo > 0), conforme a regra única.
+      where: { idEmpresa: user.idEmpresa, estoqueMinimo: { gt: 0 } },
       include: {
         estoques: {
           where: { almoxarifado: { is: { ativo: true } } },
@@ -26,21 +29,23 @@ export class EstoqueAlertService {
       );
       const minimo = new Decimal(produto.estoqueMinimo.toString());
 
-      if (saldoTotal.gt(minimo)) return [];
+      if (!estaNoMinimoOuAbaixo(saldoTotal, minimo)) return [];
 
-      return [{
-        produtoId: produto.id,
-        sku: produto.sku,
-        nome: produto.nome,
-        saldoAtual: saldoTotal.toNumber(),
-        estoqueMinimo: minimo.toNumber(),
-        abaixoDoMinimo: saldoTotal.lt(minimo),
-        almoxarifados: produto.estoques.map((estoque) => ({
-          almoxarifadoId: estoque.almoxarifadoId,
-          almoxarifado: estoque.almoxarifado.nome,
-          quantidade: Number(estoque.quantidade),
-        })),
-      }];
+      return [
+        {
+          produtoId: produto.id,
+          sku: produto.sku,
+          nome: produto.nome,
+          saldoAtual: saldoTotal.toNumber(),
+          estoqueMinimo: minimo.toNumber(),
+          abaixoDoMinimo: saldoTotal.lt(minimo),
+          almoxarifados: produto.estoques.map((estoque) => ({
+            almoxarifadoId: estoque.almoxarifadoId,
+            almoxarifado: estoque.almoxarifado.nome,
+            quantidade: Number(estoque.quantidade),
+          })),
+        },
+      ];
     });
   }
 }
