@@ -2,6 +2,7 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module'
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
+import { SanitizeInterceptor } from './common/interceptors/sanitize.interceptor';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -15,7 +16,7 @@ async function bootstrap() {
 
   // REGISTRO GLOBAL DO INTERCEPTOR DE RESPOSTA
   app.useGlobalInterceptors(new TransformInterceptor());
-
+  app.useGlobalInterceptors(new SanitizeInterceptor());
   await app.listen(3000);
 }
 
