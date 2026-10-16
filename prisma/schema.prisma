@@ -32,6 +32,10 @@ model Empresa {
   precos            PrecoProduto[]
   estoqueMovimentos EstoqueMovimento[]
   itensPedido       ItemPedido[]
+  planoContas       PlanoContas[]
+  centrosCusto      CentroCusto[]
+  almoxarifados     Almoxarifado[]
+  formasPagamento   FormaPagamento[]
 }
 
 model Pessoa {
@@ -47,7 +51,6 @@ model Pessoa {
   updatedAt     DateTime @updatedAt
 
   empresa       Empresa  @relation(fields: [idEmpresa], references: [id])
-
   cliente       Cliente?
   fornecedor    Fornecedor?
   usuario       Usuario?
@@ -162,14 +165,14 @@ model Produto {
   itensPedido   ItemPedido[]
   precos        PrecoProduto[]
 
-  @@unique([idEmpresa, sku]) // Unicidade de SKU por Tenant
+  @@unique([idEmpresa, sku])
 }
 
 model PrecoProduto {
   id           String   @id @default(uuid())
   idEmpresa    String
   produtoId    String
-  nomeTabela   String   @default("Padrão") // Ex: "Padrão", "Atacado", "Revenda"
+  nomeTabela   String   @default("Padrão")
   precoVenda   Decimal  @db.Decimal(10, 2)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
@@ -181,18 +184,34 @@ model PrecoProduto {
   @@index([idEmpresa, produtoId])
 }
 
-model Estoque {
-  id                String   @id @default(uuid())
-  idEmpresa         String
-  produtoId         String
-  quantidade        Decimal  @db.Decimal(12, 3) @default(0)
-  ultimaAtualizacao DateTime @updatedAt
+model Almoxarifado {
+  id          String   @id @default(uuid())
+  idEmpresa   String
+  nome        String   // Ex: "Depósito Central"
+  ativo       Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  empresa           Empresa  @relation(fields: [idEmpresa], references: [id])
-  produto           Produto  @relation(fields: [produtoId], references: [id])
+  empresa     Empresa   @relation(fields: [idEmpresa], references: [id])
+  estoques    Estoque[]
+
+  @@unique([idEmpresa, nome])
+}
+
+model Estoque {
+  id                String       @id @default(uuid())
+  idEmpresa         String
+  almoxarifadoId    String
+  produtoId         String
+  quantidade        Decimal      @db.Decimal(12, 3) @default(0)
+  ultimaAtualizacao DateTime     @updatedAt
+
+  empresa           Empresa      @relation(fields: [idEmpresa], references: [id])
+  almoxarifado      Almoxarifado @relation(fields: [almoxarifadoId], references: [id])
+  produto           Produto      @relation(fields: [produtoId], references: [id])
   movimentacoes     EstoqueMovimento[]
 
-  @@unique([idEmpresa, produtoId])
+  @@unique([idEmpresa, almoxarifadoId, produtoId])
 }
 
 model EstoqueMovimento {
@@ -224,7 +243,7 @@ model Pedido {
   itens         ItemPedido[]
   financeiro    TransacaoFinanceira?
 
-  @@index([idEmpresa, dataPedido]) // Índice para performance de listagem de pedidos
+  @@index([idEmpresa, dataPedido])
 }
 
 model ItemPedido {
@@ -241,21 +260,68 @@ model ItemPedido {
   produto       Produto  @relation(fields: [produtoId], references: [id])
 }
 
+model PlanoContas {
+  id          String   @id @default(uuid())
+  idEmpresa   String
+  codigo      String   // Ex: "1.1.01"
+  nome        String   // Ex: "Receita de Vendas"
+  tipo        String   // 'RECEITA' ou 'DESPESA'
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  empresa     Empresa               @relation(fields: [idEmpresa], references: [id])
+  transacoes  TransacaoFinanceira[]
+
+  @@unique([idEmpresa, codigo])
+}
+
+model CentroCusto {
+  id          String   @id @default(uuid())
+  idEmpresa   String
+  nome        String   // Ex: "Comercial"
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  empresa     Empresa               @relation(fields: [idEmpresa], references: [id])
+  transacoes  TransacaoFinanceira[]
+}
+
+// ✨ Nova tabela: Formas / Métodos de Pagamento (Dinheiro, Pix, Cartão, Boleto)
+model FormaPagamento {
+  id          String   @id @default(uuid())
+  idEmpresa   String
+  nome        String   // Ex: "Pix", "Cartão de Crédito 3x"
+  ativo       Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  empresa     Empresa               @relation(fields: [idEmpresa], references: [id])
+  transacoes  TransacaoFinanceira[]
+
+  @@unique([idEmpresa, nome])
+}
+
 model TransacaoFinanceira {
-  id             String    @id @default(uuid())
-  idEmpresa      String
-  pedidoId       String?   @unique // Obrigatório @unique para relação 1-para-1 opcional no Prisma 7
-  descricao      String
-  valor          Decimal   @db.Decimal(12, 2)
-  tipo           String
-  dataVencimento DateTime
-  dataPagamento  DateTime?
-  status         String
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  id               String          @id @default(uuid())
+  idEmpresa        String
+  pedidoId         String?         @unique
+  planoContasId    String?         
+  centroCustoId    String?         
+  formaPagamentoId String?         // ✨ Vínculo com a Forma de Pagamento
+  descricao        String
+  valor            Decimal         @db.Decimal(12, 2)
+  tipo             String          // 'RECEITA' ou 'DESPESA'
+  dataVencimento   DateTime
+  dataPagamento    DateTime?
+  status           String          // 'PENDENTE', 'PAGO', 'CANCELADO'
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
 
-  empresa        Empresa   @relation(fields: [idEmpresa], references: [id])
-  pedido         Pedido?   @relation(fields: [pedidoId], references: [id])
+  empresa          Empresa         @relation(fields: [idEmpresa], references: [id])
+  pedido           Pedido?         @relation(fields: [pedidoId], references: [id])
+  planoContas      PlanoContas?    @relation(fields: [planoContasId], references: [id])
+  centroCusto      CentroCusto?    @relation(fields: [centroCustoId], references: [id])
+  formaPagamento   FormaPagamento? @relation(fields: [formaPagamentoId], references: [id])
 
-  @@index([idEmpresa, dataVencimento]) // Índice para performance de fluxo de caixa
+  @@index([idEmpresa, dataVencimento])
 }
