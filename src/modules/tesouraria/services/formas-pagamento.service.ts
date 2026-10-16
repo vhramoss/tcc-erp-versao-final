@@ -1,16 +1,19 @@
 import { Injectable } from '@nestjs/common';
+import { UserContext } from '../../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { CreateFormaPagamentoDto } from '../dto/create-forma-pagamento.dto';
 
 @Injectable()
 export class FormasPagamentoService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) {}
 
-  create(dto: CreateFormaPagamentoDto) {
-    return this.prisma.formaPagamento.create({ data: dto });
+  create(user: UserContext, dto: CreateFormaPagamentoDto) {
+    return this.prisma.formaPagamento.create({
+      data: { idEmpresa: user.idEmpresa, nome: dto.nome.trim(), ativo: dto.ativo ?? true },
+    });
   }
 
-  findAll(idEmpresa: string) {
-    return this.prisma.formaPagamento.findMany({ where: { idEmpresa } });
+  findAll(user: UserContext) {
+    return this.prisma.formaPagamento.findMany({ where: { idEmpresa: user.idEmpresa }, orderBy: { nome: 'asc' } });
   }
 }

@@ -1,4 +1,5 @@
-import { IsString, IsNotEmpty, IsNumber, Min, IsEnum } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsEnum, IsNotEmpty, IsNumber, IsString, Min } from 'class-validator';
 
 export enum TipoMovimentacao {
   ENTRADA = 'ENTRADA',
@@ -10,7 +11,13 @@ export class CreateMovimentacaoDto {
   @IsNotEmpty()
   produtoId: string;
 
-  @IsNumber()
+  // O saldo é controlado por produto e almoxarifado.
+  @IsString()
+  @IsNotEmpty()
+  almoxarifadoId: string;
+
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 3 })
   @Min(0.001)
   quantidade: number;
 

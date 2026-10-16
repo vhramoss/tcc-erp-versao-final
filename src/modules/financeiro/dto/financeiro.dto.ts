@@ -1,5 +1,5 @@
-import { IsString, IsNotEmpty, IsNumber, Min, IsEnum, IsDate, IsOptional } from 'class-validator';
 import { Type } from 'class-transformer';
+import { IsDate, IsEmail, IsEnum, IsNotEmpty, IsNumber, IsOptional, IsString, Min } from 'class-validator';
 
 export enum TipoTransacao {
   RECEITA = 'RECEITA',
@@ -10,6 +10,7 @@ export enum StatusTransacao {
   PENDENTE = 'PENDENTE',
   PAGO = 'PAGO',
   ATRASADO = 'ATRASADO',
+  CANCELADO = 'CANCELADO',
 }
 
 export class CreateFinanceiroDto {
@@ -17,16 +18,16 @@ export class CreateFinanceiroDto {
   @IsNotEmpty()
   descricao: string;
 
-  @IsNumber()
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0.01)
   valor: number;
 
   @IsEnum(TipoTransacao)
   tipo: TipoTransacao;
 
-  @IsDate()
-  @IsNotEmpty()
   @Type(() => Date)
+  @IsDate()
   dataVencimento: Date;
 
   @IsOptional()
@@ -34,18 +35,16 @@ export class CreateFinanceiroDto {
   pedidoId?: string;
 
   @IsOptional()
-  @IsString()
+  @IsEnum(StatusTransacao)
   status?: StatusTransacao;
 }
 
 export class FiltroFluxoCaixaDto {
-  @IsDate()
-  @IsNotEmpty()
   @Type(() => Date)
+  @IsDate()
   dataInicio: Date;
 
-  @IsDate()
-  @IsNotEmpty()
   @Type(() => Date)
+  @IsDate()
   dataFim: Date;
 }

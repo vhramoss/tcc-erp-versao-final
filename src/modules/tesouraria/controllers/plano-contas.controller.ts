@@ -1,18 +1,19 @@
-import { Controller, Get, Post, Body, Query } from '@nestjs/common';
-import { PlanoContasService } from '../services/plano-contas.service';
+import { Body, Controller, Get, Post } from '@nestjs/common';
+import { CurrentUser, UserContext } from '../../../common/decorators/current-user.decorator';
 import { CreatePlanoContasDto } from '../dto/create-plano-contas.dto';
+import { PlanoContasService } from '../services/plano-contas.service';
 
 @Controller('plano-contas')
 export class PlanoContasController {
   constructor(private readonly service: PlanoContasService) {}
 
   @Post()
-  create(@Body() dto: CreatePlanoContasDto) {
-    return this.service.create(dto);
+  create(@CurrentUser() user: UserContext, @Body() dto: CreatePlanoContasDto) {
+    return this.service.create(user, dto);
   }
 
   @Get()
-  findAll(@Query('idEmpresa') idEmpresa: string) {
-    return this.service.findAll(idEmpresa);
+  findAll(@CurrentUser() user: UserContext) {
+    return this.service.findAll(user);
   }
 }

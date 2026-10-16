@@ -1,39 +1,46 @@
 import { Injectable } from '@nestjs/common';
+import Decimal from 'decimal.js';
 import { PrismaService } from '../../prisma/prisma.service';
 import { UserContext } from '../../common/decorators/current-user.decorator';
 
 @Injectable()
 export class EstoqueAlertService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   async getProdutosAbaixoDoMinimo(user: UserContext) {
-    const { idEmpresa } = user;
-
-    // Busca produtos onde o saldo atual no estoque é <= estoqueMinimo
-    // Utilizamos um join entre Produto e Estoque
-    const produtosComEstoque = await this.prisma.produto.findMany({
-      where: {
-        idEmpresa,
+    const produtos = await this.prisma.produto.findMany({
+      where: { idEmpresa: user.idEmpresa },
+      include: {
         estoques: {
-          some: {
-            // Aqui simulamos a comparação. No PostgreSQL real,
-            // para comparar duas colunas de tabelas diferentes no where,
-            // poderíamos usar raw query ou filtrar no service.
-          },
+          where: { almoxarifado: { is: { ativo: true } } },
+          include: { almoxarifado: { select: { id: true, nome: true } } },
         },
       },
-      include: { estoques: true },
+      orderBy: { nome: 'asc' },
     });
 
-    // Filtro preciso de saldo <= estoqueMinimo
-    return produtosComEstoque.filter(p => {
-      const saldo = p.estoques[0]?.quantidade || 0;
-      return Number(saldo) <= Number(p.estoqueMinimo);
-    }).map(p => ({
-      produtoId: p.id,
-      nome: p.nome,
-      saldoAtual: p.estoques[0]?.quantidade,
-      estoqueMinimo: p.estoqueMinimo
-    }));
+    return produtos.flatMap((produto) => {
+      const saldoTotal = produto.estoques.reduce(
+        (total, estoque) => total.plus(estoque.quantidade.toString()),
+        new Decimal(0),
+      );
+      const minimo = new Decimal(produto.estoqueMinimo.toString());
+
+      if (saldoTotal.gt(minimo)) return [];
+
+      return [{
+        produtoId: produto.id,
+        sku: produto.sku,
+        nome: produto.nome,
+        saldoAtual: saldoTotal.toNumber(),
+        estoqueMinimo: minimo.toNumber(),
+        abaixoDoMinimo: saldoTotal.lt(minimo),
+        almoxarifados: produto.estoques.map((estoque) => ({
+          almoxarifadoId: estoque.almoxarifadoId,
+          almoxarifado: estoque.almoxarifado.nome,
+          quantidade: Number(estoque.quantidade),
+        })),
+      }];
+    });
   }
 }

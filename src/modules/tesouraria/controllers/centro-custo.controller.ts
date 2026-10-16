@@ -1,18 +1,19 @@
-import { Controller, Get, Post, Body, Query } from '@nestjs/common';
-import { CentroCustoService } from '../services/centro-custo.service';
+import { Body, Controller, Get, Post } from '@nestjs/common';
+import { CurrentUser, UserContext } from '../../../common/decorators/current-user.decorator';
 import { CreateCentroCustoDto } from '../dto/create-centro-custo.dto';
+import { CentroCustoService } from '../services/centro-custo.service';
 
 @Controller('centros-custo')
 export class CentroCustoController {
   constructor(private readonly service: CentroCustoService) {}
 
   @Post()
-  create(@Body() dto: CreateCentroCustoDto) {
-    return this.service.create(dto);
+  create(@CurrentUser() user: UserContext, @Body() dto: CreateCentroCustoDto) {
+    return this.service.create(user, dto);
   }
 
   @Get()
-  findAll(@Query('idEmpresa') idEmpresa: string) {
-    return this.service.findAll(idEmpresa);
+  findAll(@CurrentUser() user: UserContext) {
+    return this.service.findAll(user);
   }
 }

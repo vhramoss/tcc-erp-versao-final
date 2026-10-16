@@ -1,10 +1,6 @@
-import { IsString, IsNotEmpty, IsBoolean, IsOptional } from 'class-validator';
+import { IsBoolean, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 
 export class CreateFormaPagamentoDto {
-  @IsString()
-  @IsNotEmpty()
-  idEmpresa: string;
-
   @IsString()
   @IsNotEmpty()
   nome: string;

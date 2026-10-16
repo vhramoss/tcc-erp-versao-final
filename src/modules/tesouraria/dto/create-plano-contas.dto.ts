@@ -1,10 +1,6 @@
-import { IsString, IsNotEmpty } from 'class-validator';
+import { IsIn, IsNotEmpty, IsString } from 'class-validator';
 
 export class CreatePlanoContasDto {
-  @IsString()
-  @IsNotEmpty()
-  idEmpresa: string;
-
   @IsString()
   @IsNotEmpty()
   codigo: string;
@@ -14,6 +10,6 @@ export class CreatePlanoContasDto {
   nome: string;
 
   @IsString()
-  @IsNotEmpty()
-  tipo: string; // 'RECEITA' ou 'DESPESA'
+  @IsIn(['RECEITA', 'DESPESA'])
+  tipo: string;
 }

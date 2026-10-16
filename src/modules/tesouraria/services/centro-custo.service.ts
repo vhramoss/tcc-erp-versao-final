@@ -1,16 +1,17 @@
 import { Injectable } from '@nestjs/common';
+import { UserContext } from '../../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { CreateCentroCustoDto } from '../dto/create-centro-custo.dto';
 
 @Injectable()
 export class CentroCustoService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) {}
 
-  create(dto: CreateCentroCustoDto) {
-    return this.prisma.centroCusto.create({ data: dto });
+  create(user: UserContext, dto: CreateCentroCustoDto) {
+    return this.prisma.centroCusto.create({ data: { nome: dto.nome.trim(), idEmpresa: user.idEmpresa } });
   }
 
-  findAll(idEmpresa: string) {
-    return this.prisma.centroCusto.findMany({ where: { idEmpresa } });
+  findAll(user: UserContext) {
+    return this.prisma.centroCusto.findMany({ where: { idEmpresa: user.idEmpresa }, orderBy: { nome: 'asc' } });
   }
 }

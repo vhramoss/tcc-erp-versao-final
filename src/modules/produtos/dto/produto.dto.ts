@@ -1,5 +1,5 @@
-// @ts-nocheck
-import { IsString, IsNotEmpty, IsNumber, Min, IsOptional } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsNotEmpty, IsNumber, IsOptional, IsString, Min } from 'class-validator';
 
 export class CreateCategoriaDto {
   @IsString()
@@ -20,15 +20,18 @@ export class CreateProdutoDto {
   @IsNotEmpty()
   sku: string;
 
-  @IsNumber()
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0)
   precoCusto: number;
 
-  @IsNumber()
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0)
   precoVenda: number;
 
-  @IsNumber()
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 3 })
   @Min(0)
   estoqueMinimo: number;
 
