@@ -1,10 +1,26 @@
 import { Type } from 'class-transformer';
-import { IsNotEmpty, IsNumber, IsOptional, IsString, Min } from 'class-validator';
+import { IsNotEmpty, IsNumber, IsOptional, IsString, IsUUID, Min } from 'class-validator';
 
 export class CreateCategoriaDto {
   @IsString()
   @IsNotEmpty()
   nome: string;
+}
+
+export class CreateMarcaDto {
+  @IsString()
+  @IsNotEmpty()
+  nome: string;
+}
+
+export class CreateUnidadeMedidaDto {
+  @IsString()
+  @IsNotEmpty()
+  sigla: string; // Ex: "UN", "KG"
+
+  @IsString()
+  @IsNotEmpty()
+  nome: string; // Ex: "Unidade", "Quilograma"
 }
 
 export class CreateProdutoDto {
@@ -19,6 +35,14 @@ export class CreateProdutoDto {
   @IsString()
   @IsNotEmpty()
   sku: string;
+
+  @IsOptional()
+  @IsString()
+  referencia?: string;
+
+  @IsOptional()
+  @IsString()
+  cor?: string;
 
   @Type(() => Number)
   @IsNumber({ maxDecimalPlaces: 2 })
@@ -35,7 +59,13 @@ export class CreateProdutoDto {
   @Min(0)
   estoqueMinimo: number;
 
-  @IsString()
-  @IsNotEmpty()
+  @IsUUID()
   categoriaId: string;
+
+  @IsUUID()
+  unidadeMedidaId: string;
+
+  @IsOptional()
+  @IsUUID()
+  marcaId?: string;
 }

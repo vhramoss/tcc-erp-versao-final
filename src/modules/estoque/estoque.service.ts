@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Prisma, TipoMovimentoEstoque } from '@prisma/client';
 import Decimal from 'decimal.js';
 import { PrismaService } from '../../prisma/prisma.service';
 import { UserContext } from '../../common/decorators/current-user.decorator';
@@ -33,6 +33,8 @@ export interface DadosMovimentacao {
   quantidade: Decimal.Value;
   tipo: TipoMovimentacao;
   observacao: string;
+  /** Preenchido quando a movimentação nasce de um pedido (permite rastrear e estornar). */
+  pedidoId?: string;
 }
 
 @Injectable()
@@ -57,7 +59,7 @@ export class EstoqueService {
     dados: DadosMovimentacao,
   ): Promise<MovimentacaoResponse> {
     const { idEmpresa, usuarioId } = ctx;
-    const { produtoId, almoxarifadoId, tipo, observacao } = dados;
+    const { produtoId, almoxarifadoId, tipo, observacao, pedidoId } = dados;
     const quantidade = new Decimal(dados.quantidade);
 
     const [produto, almoxarifado] = await Promise.all([
@@ -98,8 +100,11 @@ export class EstoqueService {
         idEmpresa,
         estoqueId: estoqueAtual.id,
         usuarioId,
+        pedidoId: pedidoId ?? null,
+        tipo: tipo === TipoMovimentacao.ENTRADA ? TipoMovimentoEstoque.ENTRADA : TipoMovimentoEstoque.SAIDA,
         qtdAnterior: saldoAnterior.toFixed(3),
         qtdModificada: quantidade.toFixed(3),
+        qtdPosterior: novoSaldo.toFixed(3),
         observacao,
       },
     });

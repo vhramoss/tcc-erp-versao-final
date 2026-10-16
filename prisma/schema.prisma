@@ -6,15 +6,19 @@ datasource db {
   provider = "postgresql"
 }
 
+// ============================================================================
+// MULTI-TENANT: toda tabela operacional carrega idEmpresa.
+// ============================================================================
+
 model Empresa {
-  id            String   @id @default(uuid())
-  nome          String
-  cnpj          String   @unique
-  email         String   @unique
-  telefone      String?
-  endereco      String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id        String   @id @default(uuid())
+  nome      String
+  cnpj      String   @unique
+  email     String   @unique
+  telefone  String?
+  endereco  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   usuarios          Usuario[]
   clientes          Cliente[]
@@ -25,7 +29,7 @@ model Empresa {
   pedidos           Pedido[]
   financeiros       TransacaoFinanceira[]
   usuarioPerms      UsuarioPermissao[]
-  
+
   // Relações inversas obrigatórias no Prisma 7:
   pessoas           Pessoa[]
   categorias        CategoriaProduto[]
@@ -36,131 +40,183 @@ model Empresa {
   centrosCusto      CentroCusto[]
   almoxarifados     Almoxarifado[]
   formasPagamento   FormaPagamento[]
+  unidadesMedida    UnidadeMedida[]
+  marcas            Marca[]
+  statusPedidos     StatusPedido[]
+  statusProdutos    StatusProduto[]
 }
 
-model Pessoa {
-  id            String   @id @default(uuid())
-  idEmpresa     String
-  nome          String
-  email         String
-  cpfCnpj       String
-  telefone      String?
-  endereco      String?
-  tipo          String   // 'FISICA' ou 'JURIDICA'
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+// ----------------------------------------------------------------------------
+// Pessoas e acesso
+// ----------------------------------------------------------------------------
 
-  empresa       Empresa  @relation(fields: [idEmpresa], references: [id])
-  cliente       Cliente?
-  fornecedor    Fornecedor?
-  usuario       Usuario?
+model Pessoa {
+  id        String   @id @default(uuid())
+  idEmpresa String
+  nome      String
+  email     String
+  cpfCnpj   String
+  telefone  String?
+  endereco  String?
+  tipo      String // 'FISICA' ou 'JURIDICA'
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  empresa    Empresa     @relation(fields: [idEmpresa], references: [id])
+  cliente    Cliente?
+  fornecedor Fornecedor?
+  usuario    Usuario?
 
   @@unique([idEmpresa, cpfCnpj])
   @@unique([idEmpresa, email])
 }
 
 model Cliente {
-  id            String   @id @default(uuid())
-  idEmpresa     String
-  pessoaId      String   @unique
-  codigo        String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id        String   @id @default(uuid())
+  idEmpresa String
+  pessoaId  String   @unique
+  codigo    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  empresa       Empresa  @relation(fields: [idEmpresa], references: [id])
-  pessoa        Pessoa   @relation(fields: [pessoaId], references: [id])
-  pedidos       Pedido[]
+  empresa Empresa  @relation(fields: [idEmpresa], references: [id])
+  pessoa  Pessoa   @relation(fields: [pessoaId], references: [id])
+  pedidos Pedido[]
 }
 
 model Fornecedor {
-  id            String   @id @default(uuid())
-  idEmpresa     String
-  pessoaId      String   @unique
-  codigo        String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id        String   @id @default(uuid())
+  idEmpresa String
+  pessoaId  String   @unique
+  codigo    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  empresa       Empresa  @relation(fields: [idEmpresa], references: [id])
-  pessoa        Pessoa   @relation(fields: [pessoaId], references: [id])
+  empresa Empresa @relation(fields: [idEmpresa], references: [id])
+  pessoa  Pessoa  @relation(fields: [pessoaId], references: [id])
+}
+
+model Departamento {
+  id        String   @id @default(uuid())
+  idEmpresa String
+  nome      String
+  sigla     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  empresa  Empresa   @relation(fields: [idEmpresa], references: [id])
+  usuarios Usuario[]
+
+  @@unique([idEmpresa, nome])
 }
 
 model Usuario {
-  id            String   @id @default(uuid())
-  idEmpresa     String
-  pessoaId      String   @unique
-  username      String
-  password      String
-  ativo         Boolean  @default(true)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id             String   @id @default(uuid())
+  idEmpresa      String
+  pessoaId       String   @unique
+  departamentoId String? // objetivo (d): acesso por departamento
+  username       String
+  password       String
+  ativo          Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
-  empresa       Empresa  @relation(fields: [idEmpresa], references: [id])
-  pessoa        Pessoa   @relation(fields: [pessoaId], references: [id])
-  permissoes    UsuarioPermissao[]
+  empresa      Empresa            @relation(fields: [idEmpresa], references: [id])
+  pessoa       Pessoa             @relation(fields: [pessoaId], references: [id])
+  departamento Departamento?      @relation(fields: [departamentoId], references: [id])
+  permissoes   UsuarioPermissao[]
+  movimentos   EstoqueMovimento[]
+  pedidos      Pedido[]
 
   @@unique([idEmpresa, username])
 }
 
-model Departamento {
-  id            String   @id @default(uuid())
-  idEmpresa     String
-  nome          String
-  sigla         String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-
-  empresa       Empresa  @relation(fields: [idEmpresa], references: [id])
-}
-
 model Permissao {
-  id            String   @id @default(uuid())
-  nome          String   @unique
-  descricao     String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id        String   @id @default(uuid())
+  nome      String   @unique
+  descricao String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  usuarios      UsuarioPermissao[]
+  usuarios UsuarioPermissao[]
 }
 
 model UsuarioPermissao {
-  id            String   @id @default(uuid())
-  idEmpresa     String
-  usuarioId     String
-  permissaoId   String
-  createdAt     DateTime @default(now())
+  id          String   @id @default(uuid())
+  idEmpresa   String
+  usuarioId   String
+  permissaoId String
+  createdAt   DateTime @default(now())
 
-  empresa       Empresa    @relation(fields: [idEmpresa], references: [id])
-  usuario       Usuario    @relation(fields: [usuarioId], references: [id])
-  permissao     Permissao  @relation(fields: [permissaoId], references: [id])
+  empresa   Empresa   @relation(fields: [idEmpresa], references: [id])
+  usuario   Usuario   @relation(fields: [usuarioId], references: [id])
+  permissao Permissao @relation(fields: [permissaoId], references: [id])
 
   @@unique([usuarioId, permissaoId])
 }
 
-model CategoriaProduto {
-  id            String   @id @default(uuid())
-  idEmpresa     String
-  nome          String
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+// ----------------------------------------------------------------------------
+// Produtos (objetivo e): categoria, marca, unidade de medida, cor e referência
+// ----------------------------------------------------------------------------
 
-  empresa       Empresa  @relation(fields: [idEmpresa], references: [id])
-  produtos      Produto[]
+model CategoriaProduto {
+  id        String   @id @default(uuid())
+  idEmpresa String
+  nome      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  empresa  Empresa   @relation(fields: [idEmpresa], references: [id])
+  produtos Produto[]
+}
+
+model Marca {
+  id        String   @id @default(uuid())
+  idEmpresa String
+  nome      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  empresa  Empresa   @relation(fields: [idEmpresa], references: [id])
+  produtos Produto[]
+
+  @@unique([idEmpresa, nome])
+}
+
+model UnidadeMedida {
+  id        String   @id @default(uuid())
+  idEmpresa String
+  sigla     String // Ex: "UN", "KG", "CX"
+  nome      String // Ex: "Unidade", "Quilograma", "Caixa"
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  empresa  Empresa   @relation(fields: [idEmpresa], references: [id])
+  produtos Produto[]
+
+  @@unique([idEmpresa, sigla])
 }
 
 model Produto {
-  id            String   @id @default(uuid())
-  idEmpresa     String
-  categoriaId   String
-  nome          String
-  descricao     String?
-  sku           String
-  precoCusto    Decimal  @db.Decimal(10, 2)
-  estoqueMinimo Decimal  @db.Decimal(12, 3) @default(0)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id              String   @id @default(uuid())
+  idEmpresa       String
+  categoriaId     String
+  unidadeMedidaId String
+  marcaId         String?
+  nome            String
+  descricao       String?
+  sku             String
+  referencia      String?
+  cor             String?
+  precoCusto      Decimal  @db.Decimal(10, 2)
+  estoqueMinimo   Decimal  @default(0) @db.Decimal(12, 3)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   empresa       Empresa          @relation(fields: [idEmpresa], references: [id])
   categoria     CategoriaProduto @relation(fields: [categoriaId], references: [id])
+  unidadeMedida UnidadeMedida    @relation(fields: [unidadeMedidaId], references: [id])
+  marca         Marca?           @relation(fields: [marcaId], references: [id])
   estoques      Estoque[]
   itensPedido   ItemPedido[]
   precos        PrecoProduto[]
@@ -169,49 +225,59 @@ model Produto {
 }
 
 model PrecoProduto {
-  id           String   @id @default(uuid())
-  idEmpresa    String
-  produtoId    String
-  nomeTabela   String   @default("Padrão")
-  precoVenda   Decimal  @db.Decimal(10, 2)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id         String   @id @default(uuid())
+  idEmpresa  String
+  produtoId  String
+  nomeTabela String   @default("Padrão")
+  precoVenda Decimal  @db.Decimal(10, 2)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
-  empresa      Empresa  @relation(fields: [idEmpresa], references: [id])
-  produto      Produto  @relation(fields: [produtoId], references: [id], onDelete: Cascade)
+  empresa Empresa @relation(fields: [idEmpresa], references: [id])
+  produto Produto @relation(fields: [produtoId], references: [id], onDelete: Cascade)
 
   @@unique([idEmpresa, produtoId, nomeTabela])
   @@index([idEmpresa, produtoId])
 }
 
-model Almoxarifado {
-  id          String   @id @default(uuid())
-  idEmpresa   String
-  nome        String   // Ex: "Depósito Central"
-  ativo       Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+// ----------------------------------------------------------------------------
+// Estoque
+// ----------------------------------------------------------------------------
 
-  empresa     Empresa   @relation(fields: [idEmpresa], references: [id])
-  estoques    Estoque[]
+model Almoxarifado {
+  id        String   @id @default(uuid())
+  idEmpresa String
+  nome      String // Ex: "Depósito Central"
+  ativo     Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  empresa  Empresa   @relation(fields: [idEmpresa], references: [id])
+  estoques Estoque[]
+  pedidos  Pedido[]
 
   @@unique([idEmpresa, nome])
 }
 
 model Estoque {
-  id                String       @id @default(uuid())
+  id                String   @id @default(uuid())
   idEmpresa         String
   almoxarifadoId    String
   produtoId         String
-  quantidade        Decimal      @db.Decimal(12, 3) @default(0)
-  ultimaAtualizacao DateTime     @updatedAt
+  quantidade        Decimal  @default(0) @db.Decimal(12, 3)
+  ultimaAtualizacao DateTime @updatedAt
 
-  empresa           Empresa      @relation(fields: [idEmpresa], references: [id])
-  almoxarifado      Almoxarifado @relation(fields: [almoxarifadoId], references: [id])
-  produto           Produto      @relation(fields: [produtoId], references: [id])
-  movimentacoes     EstoqueMovimento[]
+  empresa       Empresa            @relation(fields: [idEmpresa], references: [id])
+  almoxarifado  Almoxarifado       @relation(fields: [almoxarifadoId], references: [id])
+  produto       Produto            @relation(fields: [produtoId], references: [id])
+  movimentacoes EstoqueMovimento[]
 
   @@unique([idEmpresa, almoxarifadoId, produtoId])
+}
+
+enum TipoMovimentoEstoque {
+  ENTRADA
+  SAIDA
 }
 
 model EstoqueMovimento {
@@ -219,31 +285,86 @@ model EstoqueMovimento {
   idEmpresa     String
   estoqueId     String
   usuarioId     String
+  pedidoId      String? // origem, quando a movimentação vem de um pedido
+  tipo          TipoMovimentoEstoque
   qtdAnterior   Decimal  @db.Decimal(12, 3)
-  qtdModificada Decimal  @db.Decimal(12, 3)
+  qtdModificada Decimal  @db.Decimal(12, 3) // sempre positiva; o sentido está em "tipo"
+  qtdPosterior  Decimal  @db.Decimal(12, 3)
   observacao    String
   createdAt     DateTime @default(now())
 
-  empresa       Empresa  @relation(fields: [idEmpresa], references: [id])
-  estoque       Estoque  @relation(fields: [estoqueId], references: [id])
+  empresa Empresa @relation(fields: [idEmpresa], references: [id])
+  estoque Estoque @relation(fields: [estoqueId], references: [id])
+  usuario Usuario @relation(fields: [usuarioId], references: [id])
+  pedido  Pedido? @relation(fields: [pedidoId], references: [id])
+
+  @@index([idEmpresa, estoqueId, createdAt])
+  @@index([pedidoId])
+}
+
+// ----------------------------------------------------------------------------
+// Pedidos (objetivo c): status configuráveis por empresa
+// ----------------------------------------------------------------------------
+
+model StatusPedido {
+  id             String   @id @default(uuid())
+  idEmpresa      String
+  nome           String
+  ordem          Int      @default(0)
+  ehInicial      Boolean  @default(false) // status atribuído ao criar o pedido
+  ehFinal        Boolean  @default(false) // encerra o fluxo (entregue, cancelado...)
+  ehCancelamento Boolean  @default(false) // ao entrar neste status: estorna estoque e financeiro
+  ativo          Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  empresa Empresa  @relation(fields: [idEmpresa], references: [id])
+  pedidos Pedido[]
+
+  @@unique([idEmpresa, nome])
+}
+
+model StatusProduto {
+  id        String   @id @default(uuid())
+  idEmpresa String
+  nome      String // status do ITEM no pedido. Ex: "Pendente", "Separado", "Entregue"
+  ordem     Int      @default(0)
+  ativo     Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  empresa Empresa      @relation(fields: [idEmpresa], references: [id])
+  itens   ItemPedido[]
+
+  @@unique([idEmpresa, nome])
 }
 
 model Pedido {
-  id            String   @id @default(uuid())
-  idEmpresa     String
-  clienteId     String
-  dataPedido    DateTime @default(now())
-  status        String
-  valorTotal    Decimal  @db.Decimal(12, 2)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id               String   @id @default(uuid())
+  idEmpresa        String
+  clienteId        String
+  usuarioId        String // quem criou o pedido
+  almoxarifadoId   String // de onde sai a baixa de estoque
+  formaPagamentoId String?
+  statusId         String
+  dataPedido       DateTime @default(now())
+  valorTotal       Decimal  @db.Decimal(12, 2)
+  observacao       String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
-  empresa       Empresa      @relation(fields: [idEmpresa], references: [id])
-  cliente       Cliente      @relation(fields: [clienteId], references: [id])
-  itens         ItemPedido[]
-  financeiro    TransacaoFinanceira?
+  empresa        Empresa              @relation(fields: [idEmpresa], references: [id])
+  cliente        Cliente              @relation(fields: [clienteId], references: [id])
+  usuario        Usuario              @relation(fields: [usuarioId], references: [id])
+  almoxarifado   Almoxarifado         @relation(fields: [almoxarifadoId], references: [id])
+  formaPagamento FormaPagamento?      @relation(fields: [formaPagamentoId], references: [id])
+  status         StatusPedido         @relation(fields: [statusId], references: [id])
+  itens          ItemPedido[]
+  financeiro     TransacaoFinanceira?
+  movimentos     EstoqueMovimento[]
 
   @@index([idEmpresa, dataPedido])
+  @@index([idEmpresa, statusId])
 }
 
 model ItemPedido {
@@ -251,77 +372,87 @@ model ItemPedido {
   idEmpresa     String
   pedidoId      String
   produtoId     String
+  statusId      String?
   quantidade    Decimal  @db.Decimal(12, 3)
   valorUnitario Decimal  @db.Decimal(10, 2)
   valorTotal    Decimal  @db.Decimal(12, 2)
 
-  empresa       Empresa  @relation(fields: [idEmpresa], references: [id])
-  pedido        Pedido   @relation(fields: [pedidoId], references: [id])
-  produto       Produto  @relation(fields: [produtoId], references: [id])
+  empresa Empresa        @relation(fields: [idEmpresa], references: [id])
+  pedido  Pedido         @relation(fields: [pedidoId], references: [id])
+  produto Produto        @relation(fields: [produtoId], references: [id])
+  status  StatusProduto? @relation(fields: [statusId], references: [id])
+
+  @@index([pedidoId])
 }
 
-model PlanoContas {
-  id          String   @id @default(uuid())
-  idEmpresa   String
-  codigo      String   // Ex: "1.1.01"
-  nome        String   // Ex: "Receita de Vendas"
-  tipo        String   // 'RECEITA' ou 'DESPESA'
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+// ----------------------------------------------------------------------------
+// Financeiro / Tesouraria
+// ----------------------------------------------------------------------------
 
-  empresa     Empresa               @relation(fields: [idEmpresa], references: [id])
-  transacoes  TransacaoFinanceira[]
+model PlanoContas {
+  id        String   @id @default(uuid())
+  idEmpresa String
+  codigo    String // Ex: "1.1.01"
+  nome      String // Ex: "Receita de Vendas"
+  tipo      String // 'RECEITA' ou 'DESPESA'
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  empresa    Empresa               @relation(fields: [idEmpresa], references: [id])
+  transacoes TransacaoFinanceira[]
 
   @@unique([idEmpresa, codigo])
 }
 
 model CentroCusto {
-  id          String   @id @default(uuid())
-  idEmpresa   String
-  nome        String   // Ex: "Comercial"
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id        String   @id @default(uuid())
+  idEmpresa String
+  nome      String // Ex: "Comercial"
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  empresa     Empresa               @relation(fields: [idEmpresa], references: [id])
-  transacoes  TransacaoFinanceira[]
+  empresa    Empresa               @relation(fields: [idEmpresa], references: [id])
+  transacoes TransacaoFinanceira[]
 }
 
-// ✨ Nova tabela: Formas / Métodos de Pagamento (Dinheiro, Pix, Cartão, Boleto)
+// Formas / Métodos de Pagamento (Dinheiro, Pix, Cartão, Boleto)
 model FormaPagamento {
-  id          String   @id @default(uuid())
-  idEmpresa   String
-  nome        String   // Ex: "Pix", "Cartão de Crédito 3x"
-  ativo       Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id        String   @id @default(uuid())
+  idEmpresa String
+  nome      String // Ex: "Pix", "Cartão de Crédito 3x"
+  ativo     Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  empresa     Empresa               @relation(fields: [idEmpresa], references: [id])
-  transacoes  TransacaoFinanceira[]
+  empresa    Empresa               @relation(fields: [idEmpresa], references: [id])
+  transacoes TransacaoFinanceira[]
+  pedidos    Pedido[]
 
   @@unique([idEmpresa, nome])
 }
 
 model TransacaoFinanceira {
-  id               String          @id @default(uuid())
+  id               String    @id @default(uuid())
   idEmpresa        String
-  pedidoId         String?         @unique
-  planoContasId    String?         
-  centroCustoId    String?         
-  formaPagamentoId String?         // ✨ Vínculo com a Forma de Pagamento
+  pedidoId         String?   @unique
+  planoContasId    String?
+  centroCustoId    String?
+  formaPagamentoId String?
   descricao        String
-  valor            Decimal         @db.Decimal(12, 2)
-  tipo             String          // 'RECEITA' ou 'DESPESA'
+  valor            Decimal   @db.Decimal(12, 2)
+  tipo             String // 'RECEITA' ou 'DESPESA'
   dataVencimento   DateTime
   dataPagamento    DateTime?
-  status           String          // 'PENDENTE', 'PAGO', 'CANCELADO'
-  createdAt        DateTime        @default(now())
-  updatedAt        DateTime        @updatedAt
+  status           String // 'PENDENTE', 'PAGO', 'CANCELADO' ("atrasado" é derivado)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 
-  empresa          Empresa         @relation(fields: [idEmpresa], references: [id])
-  pedido           Pedido?         @relation(fields: [pedidoId], references: [id])
-  planoContas      PlanoContas?    @relation(fields: [planoContasId], references: [id])
-  centroCusto      CentroCusto?    @relation(fields: [centroCustoId], references: [id])
-  formaPagamento   FormaPagamento? @relation(fields: [formaPagamentoId], references: [id])
+  empresa        Empresa         @relation(fields: [idEmpresa], references: [id])
+  pedido         Pedido?         @relation(fields: [pedidoId], references: [id])
+  planoContas    PlanoContas?    @relation(fields: [planoContasId], references: [id])
+  centroCusto    CentroCusto?    @relation(fields: [centroCustoId], references: [id])
+  formaPagamento FormaPagamento? @relation(fields: [formaPagamentoId], references: [id])
 
   @@index([idEmpresa, dataVencimento])
+  @@index([idEmpresa, status])
 }
