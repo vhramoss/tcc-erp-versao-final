@@ -52,6 +52,9 @@ export class FinanceiroService {
     await this.validarVinculos(idEmpresa, dto);
 
     const status = dto.status ?? StatusTransacao.PENDENTE;
+    if (dto.dataPagamento != null && status !== StatusTransacao.PAGO) {
+      throw new BadRequestException('Informe a data de pagamento apenas para uma transação paga/recebida.');
+    }
     return this.prisma.transacaoFinanceira.create({
       data: {
         idEmpresa,
@@ -60,7 +63,7 @@ export class FinanceiroService {
         tipo: dto.tipo,
         dataVencimento,
         status,
-        dataPagamento: status === StatusTransacao.PAGO ? new Date() : null,
+        dataPagamento: status === StatusTransacao.PAGO ? this.dataPagamento(dto.dataPagamento) : null,
         planoContasId: dto.planoContasId ?? null,
         centroCustoId: dto.centroCustoId ?? null,
         formaPagamentoId: dto.formaPagamentoId ?? null,
@@ -116,7 +119,8 @@ export class FinanceiroService {
 
   // ---------------------------------------------------------------- baixa e cancelamento
 
-  async darBaixa(user: UserContext, id: string) {
+  async darBaixa(user: UserContext, id: string, dataPagamento?: string) {
+    const pagamento = this.dataPagamento(dataPagamento);
     const transacao = await this.buscar(user.idEmpresa, id);
     if (transacao.status === StatusTransacao.PAGO) throw new BadRequestException('Esta transação já está paga/recebida.');
     if (transacao.status === StatusTransacao.CANCELADO) throw new BadRequestException('Não é possível dar baixa em uma transação cancelada.');
@@ -124,7 +128,7 @@ export class FinanceiroService {
     // Condição de status no WHERE: se outra requisição alterou no meio, count = 0.
     const atualizada = await this.prisma.transacaoFinanceira.updateMany({
       where: { id, idEmpresa: user.idEmpresa, status: StatusTransacao.PENDENTE },
-      data: { status: StatusTransacao.PAGO, dataPagamento: new Date() },
+      data: { status: StatusTransacao.PAGO, dataPagamento: pagamento },
     });
     if (atualizada.count !== 1) throw new BadRequestException('A transação foi alterada por outra operação; atualize e tente novamente.');
 
@@ -135,6 +139,9 @@ export class FinanceiroService {
     const transacao = await this.buscar(user.idEmpresa, id);
     if (transacao.pedidoId) {
       throw new BadRequestException('Este lançamento pertence a um pedido. Cancele o pedido para cancelar o lançamento.');
+    }
+    if (transacao.compraId) {
+      throw new BadRequestException('Não é possível cancelar isoladamente o financeiro de uma compra recebida.');
     }
     if (transacao.status === StatusTransacao.CANCELADO) throw new BadRequestException('Esta transação já está cancelada.');
     if (transacao.status === StatusTransacao.PAGO) throw new BadRequestException('Não é possível cancelar uma transação já paga/recebida.');
@@ -158,11 +165,16 @@ export class FinanceiroService {
     const { idEmpresa } = user;
     const inicioHoje = inicioDoDia(hojeLocal());
 
-    const [previsto, realizado, emAtraso] = await Promise.all([
-      this.somarPorTipo({ idEmpresa, status: StatusTransacao.PENDENTE, dataVencimento: { gte: inicio, lte: fim } }),
-      this.somarPorTipo({ idEmpresa, status: StatusTransacao.PAGO, dataPagamento: { gte: inicio, lte: fim } }),
-      this.somarPorTipo({ idEmpresa, status: StatusTransacao.PENDENTE, dataVencimento: { lt: inicioHoje } }),
-    ]);
+    // As três somas usam a mesma visão do banco, mesmo que uma baixa seja
+    // confirmada durante a consulta. Uma receita não pode aparecer duas vezes.
+    const [previsto, realizado, emAtraso] = await this.prisma.$transaction(
+      (tx) => Promise.all([
+        this.somarPorTipo(tx, { idEmpresa, status: StatusTransacao.PENDENTE, dataVencimento: { gte: inicio, lte: fim } }),
+        this.somarPorTipo(tx, { idEmpresa, status: StatusTransacao.PAGO, dataPagamento: { gte: inicio, lte: fim } }),
+        this.somarPorTipo(tx, { idEmpresa, status: StatusTransacao.PENDENTE, dataVencimento: { lt: inicioHoje } }),
+      ]),
+      { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead },
+    );
 
     return {
       periodo: { inicio: dataInicio, fim: dataFim },
@@ -180,6 +192,7 @@ export class FinanceiroService {
    * Se algo falhar depois, o rollback do pedido desfaz este lançamento também.
    */
   async criarReceitaDePedido(tx: Prisma.TransactionClient, input: ReceitaDePedidoInput) {
+    await this.validarVinculos(input.idEmpresa, { ...input, tipo: TipoTransacao.RECEITA }, tx);
     return tx.transacaoFinanceira.create({
       data: {
         idEmpresa: input.idEmpresa,
@@ -199,16 +212,18 @@ export class FinanceiroService {
   /** Cancela o lançamento do pedido dentro da transação de cancelamento do pedido. */
   async cancelarDoPedido(tx: Prisma.TransactionClient, idEmpresa: string, pedidoId: string) {
     const transacao = await tx.transacaoFinanceira.findFirst({ where: { pedidoId, idEmpresa } });
-    if (!transacao) return null;
+    if (!transacao) throw new BadRequestException('O pedido não possui lançamento financeiro para cancelar.');
     if (transacao.status === StatusTransacao.PAGO) {
       throw new BadRequestException('O recebimento deste pedido já foi efetuado; estorne-o antes de cancelar o pedido.');
     }
     if (transacao.status === StatusTransacao.CANCELADO) return transacao;
 
-    return tx.transacaoFinanceira.update({
-      where: { id: transacao.id },
+    const cancelada = await tx.transacaoFinanceira.updateMany({
+      where: { id: transacao.id, idEmpresa, status: StatusTransacao.PENDENTE },
       data: { status: StatusTransacao.CANCELADO },
     });
+    if (cancelada.count !== 1) throw new BadRequestException('O recebimento foi alterado por outra operação; atualize o pedido.');
+    return { ...transacao, status: StatusTransacao.CANCELADO };
   }
 
   // ---------------------------------------------------------------- auxiliares
@@ -217,6 +232,10 @@ export class FinanceiroService {
     const transacao = await this.prisma.transacaoFinanceira.findFirst({ where: { id, idEmpresa } });
     if (!transacao) throw new NotFoundException('Transação financeira não encontrada.');
     return transacao;
+  }
+
+  private dataPagamento(valor?: string): Date {
+    return valor == null ? new Date() : this.data(valor, 'meio');
   }
 
   private data(valor: string, modo: 'inicio' | 'meio' | 'fim'): Date {
@@ -230,11 +249,12 @@ export class FinanceiroService {
   private async validarVinculos(
     idEmpresa: string,
     v: { tipo: TipoTransacao; planoContasId?: string; centroCustoId?: string; formaPagamentoId?: string },
+    db: Prisma.TransactionClient = this.prisma,
   ) {
     const [plano, centro, forma] = await Promise.all([
-      v.planoContasId ? this.prisma.planoContas.findFirst({ where: { id: v.planoContasId, idEmpresa } }) : null,
-      v.centroCustoId ? this.prisma.centroCusto.findFirst({ where: { id: v.centroCustoId, idEmpresa } }) : null,
-      v.formaPagamentoId ? this.prisma.formaPagamento.findFirst({ where: { id: v.formaPagamentoId, idEmpresa } }) : null,
+      v.planoContasId ? db.planoContas.findFirst({ where: { id: v.planoContasId, idEmpresa } }) : null,
+      v.centroCustoId ? db.centroCusto.findFirst({ where: { id: v.centroCustoId, idEmpresa } }) : null,
+      v.formaPagamentoId ? db.formaPagamento.findFirst({ where: { id: v.formaPagamentoId, idEmpresa } }) : null,
     ]);
 
     if (v.planoContasId && !plano) throw new BadRequestException('O plano de contas informado não pertence à sua empresa.');
@@ -248,8 +268,8 @@ export class FinanceiroService {
   }
 
   /** Soma no banco (groupBy) e acumula com Decimal: sem erro de ponto flutuante. */
-  private async somarPorTipo(where: Prisma.TransacaoFinanceiraWhereInput): Promise<TotaisFinanceiros> {
-    const grupos = await this.prisma.transacaoFinanceira.groupBy({
+  private async somarPorTipo(tx: Prisma.TransactionClient, where: Prisma.TransacaoFinanceiraWhereInput): Promise<TotaisFinanceiros> {
+    const grupos = await tx.transacaoFinanceira.groupBy({
       by: ['tipo'],
       where,
       _sum: { valor: true },

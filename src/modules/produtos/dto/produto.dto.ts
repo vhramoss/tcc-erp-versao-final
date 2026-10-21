@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { IsNotEmpty, IsNumber, IsOptional, IsString, IsUUID, Min } from 'class-validator';
+import { IsBoolean, IsNotEmpty, IsNumber, IsOptional, IsString, IsUUID, Min } from 'class-validator';
 
 export class CreateCategoriaDto {
   @IsString()
@@ -58,6 +58,11 @@ export class CreateProdutoDto {
   @IsNumber({ maxDecimalPlaces: 3 })
   @Min(0)
   estoqueMinimo: number;
+
+  // Desative para produtos sem reposição recorrente.
+  @IsOptional()
+  @IsBoolean()
+  alertaEstoqueAtivo?: boolean;
 
   @IsUUID()
   categoriaId: string;

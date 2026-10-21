@@ -11,8 +11,8 @@ export class EstoqueAlertService {
   /** Lista produtos cujo saldo total (almoxarifados ativos) atingiu ou ficou abaixo do mínimo. */
   async getProdutosAbaixoDoMinimo(user: UserContext) {
     const produtos = await this.prisma.produto.findMany({
-      // Só carrega produtos monitorados (mínimo > 0), conforme a regra única.
-      where: { idEmpresa: user.idEmpresa, estoqueMinimo: { gt: 0 } },
+      // Só carrega produtos com monitoramento habilitado.
+      where: { idEmpresa: user.idEmpresa, alertaEstoqueAtivo: true },
       include: {
         estoques: {
           where: { almoxarifado: { is: { ativo: true } } },
@@ -29,7 +29,7 @@ export class EstoqueAlertService {
       );
       const minimo = new Decimal(produto.estoqueMinimo.toString());
 
-      if (!estaNoMinimoOuAbaixo(saldoTotal, minimo)) return [];
+      if (!estaNoMinimoOuAbaixo(saldoTotal, minimo, produto.alertaEstoqueAtivo)) return [];
 
       return [
         {

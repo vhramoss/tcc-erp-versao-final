@@ -38,6 +38,10 @@ export class CreateFinanceiroDto {
   status?: StatusTransacao;
 
   @IsOptional()
+  @Matches(REGEX_DATA, { message: MSG_DATA })
+  dataPagamento?: string;
+
+  @IsOptional()
   @IsUUID()
   planoContasId?: string;
 
@@ -48,6 +52,12 @@ export class CreateFinanceiroDto {
   @IsOptional()
   @IsUUID()
   formaPagamentoId?: string;
+}
+
+export class BaixaFinanceiroDto {
+  @IsOptional()
+  @Matches(REGEX_DATA, { message: MSG_DATA })
+  dataPagamento?: string;
 }
 
 export class FiltroFluxoCaixaDto {

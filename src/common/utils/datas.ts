@@ -8,17 +8,26 @@ const OFFSET_SP = '-03:00';
 
 export const REGEX_DATA = /^\d{4}-\d{2}-\d{2}$/;
 
+function converterData(data: string, horario: string): Date {
+  if (typeof data !== 'string' || !REGEX_DATA.test(data)) return new Date(NaN);
+  const calendario = new Date(`${data}T00:00:00.000Z`);
+  if (Number.isNaN(calendario.getTime()) || calendario.toISOString().slice(0, 10) !== data) {
+    return new Date(NaN);
+  }
+  return new Date(`${data}T${horario}${OFFSET_SP}`);
+}
+
 export function inicioDoDia(data: string): Date {
-  return new Date(`${data}T00:00:00.000${OFFSET_SP}`);
+  return converterData(data, '00:00:00.000');
 }
 
 export function fimDoDia(data: string): Date {
-  return new Date(`${data}T23:59:59.999${OFFSET_SP}`);
+  return converterData(data, '23:59:59.999');
 }
 
 /** Meio-dia local: usado para guardar vencimentos, resistente a qualquer fuso de exibição. */
 export function meioDoDia(data: string): Date {
-  return new Date(`${data}T12:00:00.000${OFFSET_SP}`);
+  return converterData(data, '12:00:00.000');
 }
 
 /** Data de hoje em São Paulo no formato AAAA-MM-DD. */

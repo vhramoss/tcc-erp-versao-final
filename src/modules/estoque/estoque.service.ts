@@ -35,6 +35,7 @@ export interface DadosMovimentacao {
   observacao: string;
   /** Preenchido quando a movimentação nasce de um pedido (permite rastrear e estornar). */
   pedidoId?: string;
+  compraId?: string;
 }
 
 @Injectable()
@@ -45,6 +46,7 @@ export class EstoqueService {
   async registrarMovimentacao(user: UserContext, dto: CreateMovimentacaoDto): Promise<MovimentacaoResponse> {
     return this.prisma.$transaction((tx) =>
       this.aplicarMovimentacao(tx, { idEmpresa: user.idEmpresa, usuarioId: user.id }, dto),
+      { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted },
     );
   }
 
@@ -52,6 +54,7 @@ export class EstoqueService {
    * Núcleo da movimentação. Recebe um cliente de transação (tx) para poder ser
    * reutilizado DENTRO de outra transação, como a criação de pedido no passo 4
    * (transações interativas do Prisma não aninham).
+   * O chamador deve usar ReadCommitted e ordenar produtos ao movimentar vários.
    */
   async aplicarMovimentacao(
     tx: Prisma.TransactionClient,
@@ -59,15 +62,22 @@ export class EstoqueService {
     dados: DadosMovimentacao,
   ): Promise<MovimentacaoResponse> {
     const { idEmpresa, usuarioId } = ctx;
-    const { produtoId, almoxarifadoId, tipo, observacao, pedidoId } = dados;
+    const { produtoId, almoxarifadoId, tipo, observacao, pedidoId, compraId } = dados;
     const quantidade = new Decimal(dados.quantidade);
 
-    const [produto, almoxarifado] = await Promise.all([
+    const [usuario, produto, almoxarifado] = await Promise.all([
+      tx.usuario.findFirst({ where: { id: usuarioId, idEmpresa } }),
       tx.produto.findFirst({ where: { id: produtoId, idEmpresa } }),
       tx.almoxarifado.findFirst({ where: { id: almoxarifadoId, idEmpresa, ativo: true } }),
     ]);
+    if (!usuario) throw new BadRequestException('O usuário informado não pertence à sua empresa.');
     if (!produto) throw new NotFoundException('Produto não encontrado para esta empresa.');
     if (!almoxarifado) throw new NotFoundException('Almoxarifado não encontrado, inativo ou pertencente a outra empresa.');
+
+    // Serializa movimentações do produto em todos os almoxarifados até o commit.
+    // NO KEY UPDATE permite os locks de chave estrangeira dos itens da compra.
+    // Em ReadCommitted, a soma abaixo enxerga a movimentação anterior confirmada.
+    await tx.$queryRaw`SELECT "id" FROM "Produto" WHERE "id" = ${produtoId} AND "idEmpresa" = ${idEmpresa} FOR NO KEY UPDATE`;
 
     const chave = { idEmpresa_almoxarifadoId_produtoId: { idEmpresa, almoxarifadoId, produtoId } };
     const estoqueBase = await tx.estoque.upsert({
@@ -101,6 +111,7 @@ export class EstoqueService {
         estoqueId: estoqueAtual.id,
         usuarioId,
         pedidoId: pedidoId ?? null,
+        compraId: compraId ?? null,
         tipo: tipo === TipoMovimentacao.ENTRADA ? TipoMovimentoEstoque.ENTRADA : TipoMovimentoEstoque.SAIDA,
         qtdAnterior: saldoAnterior.toFixed(3),
         qtdModificada: quantidade.toFixed(3),
@@ -117,7 +128,7 @@ export class EstoqueService {
     const saldoTotal = new Decimal((soma._sum.quantidade ?? 0).toString());
     const estoqueMinimo = new Decimal(produto.estoqueMinimo.toString());
 
-    const alerta: EstoqueAlerta | undefined = estaNoMinimoOuAbaixo(saldoTotal, estoqueMinimo)
+    const alerta: EstoqueAlerta | undefined = estaNoMinimoOuAbaixo(saldoTotal, estoqueMinimo, produto.alertaEstoqueAtivo)
       ? {
           alerta: true,
           mensagem: `ALERTA: ${produto.nome} atingiu ou está abaixo do estoque mínimo (soma de todos os almoxarifados).`,

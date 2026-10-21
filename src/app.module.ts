@@ -8,6 +8,8 @@ import { PessoasModule } from './modules/pessoas/clientes.module';
 import { TesourariaModule } from './modules/tesouraria/tesouraria.module';
 import { AlmoxarifadoModule } from './modules/logistica/almoxarifado.module';
 import { DevAuthGuard } from './common/guards/dev-auth.guard';
+import { ComprasModule } from './modules/compras/compras.module';
+import { PedidosModule } from './modules/pedidos/pedidos.module';
 
 @Module({
   imports: [
@@ -18,6 +20,8 @@ import { DevAuthGuard } from './common/guards/dev-auth.guard';
     PessoasModule,
     AlmoxarifadoModule,
     TesourariaModule,
+    ComprasModule,
+    PedidosModule,
   ],
   controllers: [],
   providers: [
