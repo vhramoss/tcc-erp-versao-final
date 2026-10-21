@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { UserContext } from '../../common/decorators/current-user.decorator';
@@ -31,12 +31,27 @@ export class AcessosService {
     for (const nome of [...nomes].sort()) lista.push(await tx.permissao.upsert({ where: { nome }, update: {}, create: { nome } }));
     return lista as { id: string; nome: string }[];
   }
+  private async autorizarConcessao(tx: Prisma.TransactionClient, user: UserContext, nomes: string[]) {
+    // Releitura sob o lock da empresa: não confia nas permissões/departamento
+    // que estavam no contexto quando a requisição entrou no guard.
+    const gestor = await tx.usuario.findFirst({
+      where: { id: user.id, idEmpresa: user.idEmpresa, ativo: true },
+      include: { permissoes: { include: { permissao: true } }, departamento: { include: { permissoes: { include: { permissao: true } } } } },
+    });
+    const setor = new Set(gestor?.departamento?.permissoes.map(p => p.permissao.nome) ?? []);
+    const efetivas = new Set(gestor?.permissoes.filter(p => setor.has(p.permissao.nome)).map(p => p.permissao.nome) ?? []);
+    if (!efetivas.has('acessos.gerenciar') || nomes.some(nome => !efetivas.has(nome))) {
+      throw new ForbiddenException('O gestor só pode conceder permissões que possui efetivamente. Solicite a outro gestor autorizado.');
+    }
+    return gestor!;
+  }
   async definirDepartamento(user: UserContext, id: string, nomes: string[]) {
     return this.prisma.$transaction(async tx => {
       await this.bloquearEmpresa(tx, user.idEmpresa);
       const departamento = await tx.departamento.findFirst({ where: { id, idEmpresa: user.idEmpresa } });
       if (!departamento) throw new NotFoundException('Departamento não encontrado.');
-      if (id === user.departamentoId && !nomes.includes('acessos.gerenciar')) throw new BadRequestException('Mantenha a gestão de acessos no seu próprio departamento.');
+      const gestor = await this.autorizarConcessao(tx, user, nomes);
+      if (id === gestor.departamentoId) throw new ForbiddenException('As permissões do seu departamento devem ser alteradas por outro gestor autorizado, de outro departamento.');
       const permissoes = await this.permissoes(tx, nomes);
       await tx.departamentoPermissao.deleteMany({ where: { departamentoId: id, idEmpresa: user.idEmpresa } });
       await tx.departamentoPermissao.createMany({ data: permissoes.map(p => ({ idEmpresa: user.idEmpresa, departamentoId: id, permissaoId: p.id })) });
@@ -54,6 +69,7 @@ export class AcessosService {
     const password = await hashSenha(dto.senha);
     return this.prisma.$transaction(async tx => {
       await this.bloquearEmpresa(tx, user.idEmpresa);
+      await this.autorizarConcessao(tx, user, dto.permissoes);
       await this.validarDepartamento(tx, user.idEmpresa, dto.departamentoId, dto.permissoes);
       const permissoes = await this.permissoes(tx, dto.permissoes);
       const pessoa = dto.pessoaId
@@ -66,11 +82,12 @@ export class AcessosService {
     });
   }
   async definirUsuario(user: UserContext, id: string, nomes: string[]) {
+    if (id === user.id) throw new ForbiddenException('Suas permissões devem ser alteradas por outro gestor autorizado.');
     return this.prisma.$transaction(async tx => {
       await this.bloquearEmpresa(tx, user.idEmpresa);
       const usuario = await tx.usuario.findFirst({ where: { id, idEmpresa: user.idEmpresa } });
       if (!usuario) throw new NotFoundException('Usuário não encontrado.');
-      if (id === user.id && !nomes.includes('acessos.gerenciar')) throw new BadRequestException('Não remova sua própria gestão de acessos.');
+      await this.autorizarConcessao(tx, user, nomes);
       if (!usuario.departamentoId) throw new BadRequestException('Vincule o usuário a um departamento.');
       await this.validarDepartamento(tx, user.idEmpresa, usuario.departamentoId, nomes);
       const permissoes = await this.permissoes(tx, nomes);

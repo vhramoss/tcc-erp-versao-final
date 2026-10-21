@@ -173,7 +173,14 @@ test('gestão de acessos rejeita pessoa e departamento externos e permissões fo
     departamento: { findFirst: async ({ where }) => combina(setor, where) ? setor : null },
     pessoa: { findFirst: async () => null },
     permissao: { upsert: async ({ where }) => ({ id: randomUUID(), nome: where.nome }) },
-    usuario: { create: async () => { gravacoes++; } },
+    usuario: {
+      findFirst: async ({ where }) => where.id === user.id && where.idEmpresa === user.idEmpresa ? {
+        ...user, ativo: true,
+        permissoes: ['acessos.gerenciar', 'produtos.ler', 'financeiro.gerenciar'].map(nome => ({ permissao: { nome } })),
+        departamento: { permissoes: ['acessos.gerenciar', 'produtos.ler', 'financeiro.gerenciar'].map(nome => ({ permissao: { nome } })) },
+      } : null,
+      create: async () => { gravacoes++; },
+    },
   };
   const service = new AcessosService({ $transaction: fn => fn(tx) });
   const dto = { pessoaId, departamentoId: setor.id, username: 'novo', senha, permissoes: ['produtos.ler'] };
@@ -216,4 +223,44 @@ test('limite de tentativas e negação por padrão de rota sem permissão', () =
   const guard = new PermissoesGuard(new Reflector());
   const contexto = { getHandler: () => function rota() {}, getClass: () => class SemPolitica {}, switchToHttp: () => ({ getRequest: () => ({ method: 'GET', user: { permissoes: ['produtos.ler'] } }) }) };
   assert.throws(() => guard.canActivate(contexto), e => e.getStatus() === 403);
+});
+
+test('HTTP: leitura, listagem, edição e exclusão respeitam empresa mesmo com permissão', async t => {
+  const a = await ambiente();
+  const direitos = ['clientes.ler', 'clientes.gerenciar'].map(nome => ({ permissao: { nome } }));
+  a.usuario.permissoes = direitos;
+  a.usuario.departamento.permissoes = direitos;
+  const proprio = { id: randomUUID(), idEmpresa: a.usuario.idEmpresa, pessoaId: randomUUID() };
+  const externo = { id: randomUUID(), idEmpresa: randomUUID(), pessoaId: randomUUID() };
+  let clientes = [proprio, externo];
+  const alteracoes = [];
+  a.prisma.cliente = {
+    findFirst: async ({ where }) => clientes.find(c => combina(c, where)),
+    findMany: async ({ where }) => clientes.filter(c => combina(c, where)),
+    delete: async ({ where }) => { alteracoes.push(['delete', where.id]); clientes = clientes.filter(c => c.id !== where.id); return { id: where.id }; },
+  };
+  a.prisma.pessoa = { update: async ({ where, data }) => { alteracoes.push(['update', where.id]); return { id: where.id, ...data }; } };
+  a.prisma.pedido = { count: async () => 0 };
+  const module = await Test.createTestingModule({ imports: [AppModule] }).overrideProvider(PrismaService).useValue(a.prisma).compile();
+  const app = module.createNestApplication({ logger: false });
+  app.useGlobalPipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }));
+  await app.listen(0, '127.0.0.1'); t.after(() => app.close());
+  const base = await app.getUrl(), par = await a.login();
+  const headers = { Authorization: `Bearer ${par.accessToken}`, 'Content-Type': 'application/json', 'x-empresa-id': externo.idEmpresa };
+  const request = (id, method = 'GET', data) => fetch(`${base}/clientes/${id}`, { method, headers, ...(data ? { body: JSON.stringify(data) } : {}) });
+  const lista = await fetch(`${base}/clientes`, { headers });
+  assert.deepEqual((await lista.json()).map(c => c.id), [proprio.id]);
+  assert.equal((await request(proprio.id)).status, 200);
+  assert.equal((await request(proprio.id, 'HEAD')).status, 200);
+  for (const method of ['GET', 'HEAD', 'PUT', 'DELETE']) {
+    const res = await request(externo.id, method, method === 'PUT' ? { nome: 'invasao' } : undefined);
+    assert.equal(res.status, 404, method);
+  }
+  assert.deepEqual(alteracoes, []);
+  assert.equal((await request(proprio.id, 'PUT', { nome: 'nome', idEmpresa: externo.idEmpresa })).status, 400);
+  assert.deepEqual(alteracoes, []);
+  assert.equal((await request(proprio.id, 'PUT', { nome: 'nome autorizado' })).status, 200);
+  assert.equal((await request(proprio.id, 'DELETE')).status, 200);
+  assert.deepEqual(alteracoes, [['update', proprio.pessoaId], ['delete', proprio.id]]);
+  assert.equal(clientes[0].id, externo.id);
 });

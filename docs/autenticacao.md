@@ -93,7 +93,7 @@ As concessões são lidas do banco em cada requisição, não congeladas no JWT.
 | PUT | `/acessos/usuarios/:id/permissoes` | Substitui permissões individuais |
 | PATCH | `/acessos/usuarios/:id` | Altera `ativo` e/ou `departamentoId`; encerra sessões |
 
-Para os PUTs, use `{ "permissoes": ["produtos.ler", "produtos.gerenciar"] }`. A lista substitui a anterior. Permissões individuais devem caber no departamento. O gestor não pode remover sua própria gestão de acessos, nem desativar/mudar seu próprio usuário por esse endpoint; essas alterações exigem outro gestor.
+Para os PUTs, use `{ "permissoes": ["produtos.ler", "produtos.gerenciar"] }`. A lista substitui a anterior. Permissões individuais devem caber no departamento. O gestor não pode alterar suas próprias permissões nem as do seu departamento. A alteração exige outro gestor autorizado; para o departamento, ele deve pertencer a outro setor. Quem concede precisa possuir efetivamente todas as permissões solicitadas, inclusive ao criar usuários, evitando delegação acima dos próprios direitos. O serviço relê os direitos e o departamento do gestor dentro da transação. Não há fila de aprovação: o outro gestor executa a alteração pela API. A desativação/mudança do próprio usuário também exige outro gestor.
 
 Exemplo de criação de usuário, após cadastrar o departamento e autorizar suas permissões:
 
@@ -120,6 +120,6 @@ As senhas usam scrypt assíncrono, com salt aleatório de 16 bytes, N=32768, r=8
 
 Há limite conjunto de 20 chamadas por minuto/IP para login, refresh e troca de senha, mantido em memória por processo. Não é um limite distribuído e não confia em `X-Forwarded-For`. Configuração de proxy, HTTPS e armazenamento dos tokens no frontend pertence à implantação/integração posterior.
 
-Schema e build validados; 40 testes passaram. Os novos testes cobrem senhas, JWTs adulterados/expirados, rotação, reutilização concorrente, logout, permissões por departamento, vínculos externos e requisições HTTP reais. O banco é simulado nesses testes: não validam os locks e as migrations no PostgreSQL. Nesta sessão, não havia `.env` com `DATABASE_URL`; nenhuma migration foi aplicada ao banco.
+Na revisão original do passo 5, schema e build foram validados e 40 testes passaram. Após a revisão de autorização, a compilação e os 107 testes passaram; veja [matriz de autorização](matriz-autorizacao.md). Os novos testes cobrem senhas, JWTs adulterados/expirados, rotação, reutilização concorrente, logout, permissões por departamento, vínculos externos e requisições HTTP reais. O banco é simulado nesses testes: não validam os locks e as migrations no PostgreSQL. Nesta sessão, não havia `.env` com `DATABASE_URL`; nenhuma migration foi aplicada ao banco.
 
 Referências técnicas: [scrypt no Node.js](https://nodejs.org/api/crypto.html#cryptoscryptpassword-salt-keylen-options-callback), [parâmetros de armazenamento de senhas — OWASP](https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html), [biblioteca jose](https://github.com/panva/jose).
