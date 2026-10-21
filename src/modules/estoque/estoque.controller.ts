@@ -1,9 +1,11 @@
+import { Recurso } from '../auth/auth.decorators';
 import { Body, Controller, Post } from '@nestjs/common';
 import { CurrentUser, UserContext } from '../../common/decorators/current-user.decorator';
 import { CreateMovimentacaoDto } from './dto/movimentacao.dto';
 import { EstoqueService } from './estoque.service';
 
 @Controller('estoque')
+@Recurso('estoque')
 export class EstoqueController {
   constructor(private readonly estoqueService: EstoqueService) {}
 

@@ -1,3 +1,4 @@
+import { Recurso } from '../../auth/auth.decorators';
 import { Body, Controller, Get, Post } from '@nestjs/common';
 import { CurrentUser, UserContext } from '../../../common/decorators/current-user.decorator';
 import {
@@ -9,6 +10,7 @@ import {
 import { ProdutosService } from '../services/produtos.service';
 
 @Controller('produtos')
+@Recurso('produtos')
 export class ProdutosController {
   constructor(private readonly produtosService: ProdutosService) {}
 

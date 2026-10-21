@@ -23,7 +23,8 @@ export class SanitizeInterceptor implements NestInterceptor {
       // Se for objeto comum, percorre cada chave
       const sanitizedObj: any = {};
       for (const key of Object.keys(obj)) {
-        sanitizedObj[key] = this.sanitizeObject(obj[key]);
+        // Senhas são verificadas byte a byte: espaços fazem parte do segredo.
+        sanitizedObj[key] = ['senha', 'senhaAtual', 'novaSenha', 'password'].includes(key) ? obj[key] : this.sanitizeObject(obj[key]);
       }
       return sanitizedObj;
     }

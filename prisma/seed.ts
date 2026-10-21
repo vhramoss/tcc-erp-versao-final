@@ -1,14 +1,20 @@
 import 'dotenv/config';
 import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
+import { hashSenha } from '../src/modules/auth/senhas';
+import { PERMISSOES } from '../src/modules/auth/auth.decorators';
 
 // Seed de DESENVOLVIMENTO: cria uma empresa de teste com os cadastros mínimos
-// para exercitar produtos, estoque, financeiro e (no passo 4) pedidos.
+// para exercitar os módulos com autenticação real.
 const prisma = new PrismaClient({
   adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }),
 });
 
 async function main() {
+  if (process.env.NODE_ENV === 'production') throw new Error('Seed permitido apenas em desenvolvimento.');
+  const senha = process.env.SEED_ADMIN_PASSWORD;
+  if (!senha || senha.length < 12 || senha.length > 128) throw new Error('Configure SEED_ADMIN_PASSWORD com 12 a 128 caracteres.');
+  const password = await hashSenha(senha);
   const empresa = await prisma.empresa.upsert({
     where: { cnpj: '00000000000191' },
     update: {},
@@ -16,8 +22,7 @@ async function main() {
   });
   const idEmpresa = empresa.id;
 
-  // Usuário de teste REAL: EstoqueMovimento e Pedido têm FK para Usuario, então o
-  // header x-user-id do guard de dev precisa ser o id de um usuário existente.
+  // Administrador inicial da empresa de demonstração.
   const departamento = await prisma.departamento.upsert({
     where: { idEmpresa_nome: { idEmpresa, nome: 'Administrativo' } },
     update: {},
@@ -36,9 +41,28 @@ async function main() {
       pessoaId: pessoaUsuario.id,
       departamentoId: departamento.id,
       username: 'dev',
-      password: 'DEV-ONLY-NOT-A-REAL-HASH', // o hash real (bcrypt) entra no passo 5
+      password,
     },
   });
+
+  // Atualiza exclusivamente o placeholder legado; não redefine senhas reais.
+  if (usuario.password === 'DEV-ONLY-NOT-A-REAL-HASH') {
+    await prisma.$transaction(async tx => {
+      await tx.usuario.update({ where: { id: usuario.id }, data: { password } });
+      await tx.sessaoRefresh.updateMany({ where: { usuarioId: usuario.id, idEmpresa }, data: { revogadoEm: new Date() } });
+    });
+  }
+  for (const nome of PERMISSOES) {
+    const permissao = await prisma.permissao.upsert({ where: { nome }, update: {}, create: { nome } });
+    await prisma.departamentoPermissao.upsert({
+      where: { departamentoId_permissaoId: { departamentoId: departamento.id, permissaoId: permissao.id } },
+      update: {}, create: { idEmpresa, departamentoId: departamento.id, permissaoId: permissao.id },
+    });
+    await prisma.usuarioPermissao.upsert({
+      where: { usuarioId_permissaoId: { usuarioId: usuario.id, permissaoId: permissao.id } },
+      update: {}, create: { idEmpresa, usuarioId: usuario.id, permissaoId: permissao.id },
+    });
+  }
 
   const almoxarifado = await prisma.almoxarifado.upsert({
     where: { idEmpresa_nome: { idEmpresa, nome: 'Depósito Central' } },
@@ -102,9 +126,8 @@ async function main() {
     statusProdutos[nome] = criado.id;
   }
 
-  console.log('\n=== Seed concluído. Headers das requisições: ===');
-  console.log(`x-empresa-id: ${idEmpresa}`);
-  console.log(`x-user-id:    ${usuario.id}`);
+  console.log('Seed concluído. Login: POST /auth/login, username dev, senha definida em SEED_ADMIN_PASSWORD.');
+  console.log({ idEmpresa, usuarioId: usuario.id });
   console.log('\nIds úteis para os corpos das requisições:');
   console.log({
     almoxarifadoId: almoxarifado.id,

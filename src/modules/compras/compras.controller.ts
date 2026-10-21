@@ -1,9 +1,11 @@
+import { Recurso } from '../auth/auth.decorators';
 import { Body, Controller, Get, Param, ParseUUIDPipe, Post } from '@nestjs/common';
 import { CurrentUser, UserContext } from '../../common/decorators/current-user.decorator';
 import { CreateCompraDto } from './compras.dto';
 import { ComprasService } from './compras.service';
 
 @Controller('compras')
+@Recurso('compras')
 export class ComprasController {
   constructor(private readonly service: ComprasService) {}
   @Post() criar(@CurrentUser() user: UserContext, @Body() dto: CreateCompraDto) { return this.service.criar(user, dto); }

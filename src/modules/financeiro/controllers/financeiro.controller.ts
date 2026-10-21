@@ -1,9 +1,11 @@
+import { Recurso } from '../../auth/auth.decorators';
 import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
 import { CurrentUser, UserContext } from '../../../common/decorators/current-user.decorator';
 import { BaixaFinanceiroDto, CreateFinanceiroDto, FiltroFluxoCaixaDto, FiltroTransacoesDto } from '../dto/financeiro.dto';
 import { FinanceiroService } from '../services/financeiro.service';
 
 @Controller('financeiro')
+@Recurso('financeiro')
 export class FinanceiroController {
   constructor(private readonly financeiroService: FinanceiroService) {}
 

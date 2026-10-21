@@ -1,9 +1,11 @@
+import { Recurso } from '../../auth/auth.decorators';
 import { Body, Controller, Delete, Get, Param, Post, Put } from '@nestjs/common';
 import { CurrentUser, UserContext } from '../../../common/decorators/current-user.decorator';
 import { CreatePessoaDto, UpdatePessoaDto } from '../dto/pessoa.dto';
 import { ClientesService } from '../services/clientes.service';
 
 @Controller('clientes')
+@Recurso('clientes')
 export class ClientesController {
   constructor(private readonly clientesService: ClientesService) {}
 

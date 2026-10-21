@@ -1,3 +1,4 @@
+import { Recurso } from '../auth/auth.decorators';
 import { Body, Controller, Get, Post } from '@nestjs/common';
 import { IsUUID } from 'class-validator';
 import { CurrentUser, UserContext } from '../../common/decorators/current-user.decorator';
@@ -7,6 +8,7 @@ import { FornecedoresService } from './fornecedores.service';
 class VincularFornecedorDto { @IsUUID() pessoaId: string; }
 
 @Controller('fornecedores')
+@Recurso('compras')
 export class FornecedoresController {
   constructor(private readonly service: FornecedoresService) {}
   @Post() criar(@CurrentUser() user: UserContext, @Body() dto: CreatePessoaDto) { return this.service.criar(user, dto); }

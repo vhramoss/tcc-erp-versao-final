@@ -1,7 +1,7 @@
 # Compras manuais — API
 
-Os módulos estão registrados no NestJS. Usam os mesmos headers temporários
-`x-empresa-id` e `x-user-id` do restante do projeto. Não incluem telas.
+Os módulos estão registrados no NestJS. Exigem `Authorization: Bearer ACCESS_TOKEN`
+e permissões de compras; consulte [autenticação](autenticacao.md). Não incluem telas.
 A migration inicial está em `prisma/migrations`. Para banco novo, configure
 `DATABASE_URL` e execute `npm run prisma:deploy`; em desenvolvimento,
 `npm run prisma:migrate` aplica o histórico e verifica mudanças.

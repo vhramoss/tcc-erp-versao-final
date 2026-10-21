@@ -47,6 +47,8 @@ model Empresa {
 
   compras Compra[]
   itensCompra ItemCompra[]
+  sessoesRefresh SessaoRefresh[]
+  departamentoPerms DepartamentoPermissao[]
 }
 
 // ----------------------------------------------------------------------------
@@ -120,6 +122,7 @@ model Departamento {
 
   empresa  Empresa   @relation(fields: [idEmpresa], references: [id])
   usuarios Usuario[]
+  permissoes DepartamentoPermissao[]
 
   @@unique([idEmpresa, nome])
 
@@ -142,6 +145,7 @@ model Usuario {
   departamento Departamento? @relation(fields: [departamentoId, idEmpresa], references: [id, idEmpresa], onDelete: Restrict)
   permissoes   UsuarioPermissao[]
   movimentos   EstoqueMovimento[]
+  sessoesRefresh SessaoRefresh[]
   pedidos      Pedido[]
 
   @@unique([idEmpresa, username])
@@ -161,6 +165,7 @@ model Permissao {
   updatedAt DateTime @updatedAt
 
   usuarios UsuarioPermissao[]
+  departamentos DepartamentoPermissao[]
 }
 
 model UsuarioPermissao {
@@ -175,6 +180,32 @@ model UsuarioPermissao {
   permissao Permissao @relation(fields: [permissaoId], references: [id])
 
   @@unique([usuarioId, permissaoId])
+}
+
+model DepartamentoPermissao {
+  id String @id @default(uuid())
+  idEmpresa String
+  departamentoId String
+  permissaoId String
+  empresa Empresa @relation(fields: [idEmpresa], references: [id])
+  departamento Departamento @relation(fields: [departamentoId, idEmpresa], references: [id, idEmpresa])
+  permissao Permissao @relation(fields: [permissaoId], references: [id])
+  @@unique([departamentoId, permissaoId])
+}
+
+model SessaoRefresh {
+  id String @id @default(uuid())
+  idEmpresa String
+  usuarioId String
+  tokenHash String @unique
+  expiraEm DateTime
+  revogadoEm DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  empresa Empresa @relation(fields: [idEmpresa], references: [id])
+  usuario Usuario @relation(fields: [usuarioId, idEmpresa], references: [id, idEmpresa])
+  @@index([idEmpresa, usuarioId])
+  @@index([expiraEm])
 }
 
 // ----------------------------------------------------------------------------

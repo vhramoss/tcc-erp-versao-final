@@ -47,7 +47,7 @@ Mudar para um status comum não movimenta estoque nem gera outra receita. Cancel
 
 Por decisão de escopo, um pedido finalizado (inclusive “Entregue”) não pode ser cancelado. Devoluções após entrega e estorno de recebimentos não estão implementados.
 
-As requisições usam os cabeçalhos de desenvolvimento existentes `x-empresa-id` e `x-user-id`. A autenticação JWT continua prevista no passo 5.
+As requisições exigem `Authorization: Bearer ACCESS_TOKEN` e permissões de pedidos. Consulte [autenticação e permissões](autenticacao.md). Os cabeçalhos temporários de desenvolvimento não autenticam mais.
 
 ## Validação
 
