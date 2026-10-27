@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto';
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import Decimal from 'decimal.js';
@@ -22,14 +21,14 @@ export class PedidosService {
   async criar(user: UserContext, dto: CreatePedidoDto) {
     const dataVencimento = meioDoDia(dto.dataVencimento);
     if (Number.isNaN(dataVencimento.getTime())) throw new BadRequestException('Data de vencimento inválida.');
-    const referencia = dto.referencia == null ? `PED-${randomUUID()}` : dto.referencia.trim();
-    if (!referencia || !dto.itens.length || dto.itens.length > 100 || new Set(dto.itens.map((i) => i.produtoId)).size !== dto.itens.length) {
+    const informada = dto.referencia?.trim();
+    if (informada === '' || !dto.itens.length || dto.itens.length > 100 || new Set(dto.itens.map((i) => i.produtoId)).size !== dto.itens.length) {
       throw new BadRequestException('Informe referência e de 1 a 100 produtos distintos.');
     }
     return this.prisma.$transaction(async (tx) => {
       const idEmpresa = user.idEmpresa;
       // Mesma ordem global do estoque: protege custo e preço até concluir a venda.
-      for (const item of [...dto.itens].sort((a, b) => a.produtoId.localeCompare(b.produtoId))) {
+      for (const item of [...dto.itens].sort((a, b) => a.produtoId - b.produtoId)) {
         await tx.$queryRaw`SELECT "id" FROM "Produto" WHERE "id" = ${item.produtoId} AND "idEmpresa" = ${idEmpresa} FOR NO KEY UPDATE`;
         await tx.$queryRaw`SELECT "id" FROM "PrecoProduto" WHERE "produtoId" = ${item.produtoId} AND "idEmpresa" = ${idEmpresa} AND "nomeTabela" = ${'Padrão'} FOR SHARE`;
       }
@@ -67,7 +66,10 @@ export class PedidosService {
       });
       const total = itens.reduce((soma, item) => soma.plus(item.valorTotal), new Decimal(0));
       if (total.gt('9999999999.99')) throw new BadRequestException('Total do pedido excede o limite permitido.');
+      const [gerado] = await tx.$queryRaw<{ id: number }[]>`SELECT nextval(pg_get_serial_sequence('"Pedido"', 'id'))::integer AS id`;
+      const referencia = informada ?? `PED-${String(gerado.id).padStart(6, '0')}`;
       const pedido = await tx.pedido.create({ data: {
+        id: gerado.id,
         idEmpresa, referencia, clienteId: cliente.id, usuarioId: usuario.id, almoxarifadoId: almoxarifado.id,
         formaPagamentoId: dto.formaPagamentoId ?? null, statusId: statusPedidos[0].id,
         valorTotal: total.toFixed(2), observacao: dto.observacao,
@@ -75,7 +77,7 @@ export class PedidosService {
       await tx.itemPedido.createMany({ data: itens.map((item) => ({ ...item, statusId: item.statusId ?? statusItens[0].id, idEmpresa, pedidoId: pedido.id })) });
       const alertas = [];
       // Mesma ordem de bloqueio das compras; cada produto é protegido até o commit.
-      for (const item of [...itens].sort((a, b) => a.produtoId.localeCompare(b.produtoId))) {
+      for (const item of [...itens].sort((a, b) => a.produtoId - b.produtoId)) {
         const resultado = await this.estoque.aplicarMovimentacao(tx, { idEmpresa, usuarioId: usuario.id }, {
           produtoId: item.produtoId, almoxarifadoId: almoxarifado.id, quantidade: item.quantidade,
           tipo: TipoMovimentacao.SAIDA, observacao: `Pedido ${referencia}`, pedidoId: pedido.id,
@@ -107,13 +109,13 @@ export class PedidosService {
     return { items, total, page, limit };
   }
 
-  async buscar(user: UserContext, id: string) {
+  async buscar(user: UserContext, id: number) {
     const pedido = await this.prisma.pedido.findFirst({ where: { id, idEmpresa: user.idEmpresa }, include: detalhes });
     if (!pedido) throw new NotFoundException('Pedido não encontrado.');
     return pedido;
   }
 
-  async alterarStatus(user: UserContext, id: string, statusId: string) {
+  async alterarStatus(user: UserContext, id: number, statusId: number) {
     return this.prisma.$transaction(async (tx) => {
       const pedido = await this.bloquearPedido(tx, user, id);
       if (pedido.statusId === statusId) return pedido;
@@ -124,7 +126,7 @@ export class PedidosService {
         // A baixa financeira concorrente vence ou perde a atualização condicional.
         // Qualquer conflito impede também o estorno de estoque.
         await this.financeiro.cancelarDoPedido(tx, user.idEmpresa, id);
-        for (const item of [...pedido.itens].sort((a, b) => a.produtoId.localeCompare(b.produtoId))) {
+        for (const item of [...pedido.itens].sort((a, b) => a.produtoId - b.produtoId)) {
           await this.estoque.aplicarMovimentacao(tx, { idEmpresa: user.idEmpresa, usuarioId: user.id }, {
             produtoId: item.produtoId, almoxarifadoId: pedido.almoxarifadoId, quantidade: item.quantidade.toString(),
             tipo: TipoMovimentacao.ENTRADA, observacao: `Cancelamento do pedido ${pedido.referencia}`, pedidoId: id,
@@ -135,7 +137,7 @@ export class PedidosService {
     }, { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted, timeout: 60000 });
   }
 
-  async alterarStatusItem(user: UserContext, pedidoId: string, itemId: string, statusId: string) {
+  async alterarStatusItem(user: UserContext, pedidoId: number, itemId: number, statusId: number) {
     return this.prisma.$transaction(async (tx) => {
       const pedido = await this.bloquearPedido(tx, user, pedidoId);
       if (pedido.status.ehFinal || pedido.status.ehCancelamento) throw new BadRequestException('Não é possível alterar itens de um pedido encerrado.');
@@ -146,7 +148,7 @@ export class PedidosService {
     }, { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted });
   }
 
-  private async bloquearPedido(tx: Prisma.TransactionClient, user: UserContext, id: string) {
+  private async bloquearPedido(tx: Prisma.TransactionClient, user: UserContext, id: number) {
     const usuario = await tx.usuario.findFirst({ where: { id: user.id, idEmpresa: user.idEmpresa, ativo: true } });
     if (!usuario) throw new BadRequestException('Usuário inválido para esta empresa.');
     await tx.$queryRaw`SELECT "id" FROM "Pedido" WHERE "id" = ${id} AND "idEmpresa" = ${user.idEmpresa} FOR NO KEY UPDATE`;

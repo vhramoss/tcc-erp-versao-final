@@ -31,7 +31,7 @@ export class ClientesService {
     });
   }
 
-  async findOne(user: UserContext, id: string) {
+  async findOne(user: UserContext, id: number) {
     const cliente = await this.prisma.cliente.findFirst({
       where: { id, idEmpresa: user.idEmpresa },
       include: { pessoa: true },
@@ -41,7 +41,7 @@ export class ClientesService {
     return cliente;
   }
 
-  async update(user: UserContext, id: string, dto: UpdatePessoaDto) {
+  async update(user: UserContext, id: number, dto: UpdatePessoaDto) {
     // findOne já garante que o cliente pertence à empresa do usuário
     const cliente = await this.findOne(user, id);
 
@@ -51,7 +51,7 @@ export class ClientesService {
     });
   }
 
-  async delete(user: UserContext, id: string) {
+  async delete(user: UserContext, id: number) {
     const cliente = await this.findOne(user, id);
 
     // REGRA DE NEGÓCIO: impedir exclusão se houver pedidos

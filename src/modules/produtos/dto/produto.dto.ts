@@ -1,5 +1,6 @@
+import { IdBanco } from '../../../common/decorators/id-banco.decorator';
 import { Type } from 'class-transformer';
-import { IsBoolean, IsNotEmpty, IsNumber, IsOptional, IsString, IsUUID, Min } from 'class-validator';
+import { IsBoolean, IsNotEmpty, IsNumber, IsOptional, IsString, Min } from 'class-validator';
 
 export class CreateCategoriaDto {
   @IsString()
@@ -64,13 +65,13 @@ export class CreateProdutoDto {
   @IsBoolean()
   alertaEstoqueAtivo?: boolean;
 
-  @IsUUID()
-  categoriaId: string;
+  @IdBanco()
+  categoriaId: number;
 
-  @IsUUID()
-  unidadeMedidaId: string;
+  @IdBanco()
+  unidadeMedidaId: number;
 
   @IsOptional()
-  @IsUUID()
-  marcaId?: string;
+  @IdBanco()
+  marcaId?: number;
 }

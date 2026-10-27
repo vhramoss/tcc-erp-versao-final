@@ -1,3 +1,4 @@
+import { IdBancoPipe } from '../../../common/decorators/id-banco.decorator';
 import { Recurso } from '../../auth/auth.decorators';
 import { Body, Controller, Delete, Get, Param, Post, Put } from '@nestjs/common';
 import { CurrentUser, UserContext } from '../../../common/decorators/current-user.decorator';
@@ -20,17 +21,17 @@ export class ClientesController {
   }
 
   @Get(':id')
-  findOne(@CurrentUser() user: UserContext, @Param('id') id: string) {
+  findOne(@CurrentUser() user: UserContext, @Param('id', IdBancoPipe) id: number) {
     return this.clientesService.findOne(user, id);
   }
 
   @Put(':id')
-  update(@CurrentUser() user: UserContext, @Param('id') id: string, @Body() dto: UpdatePessoaDto) {
+  update(@CurrentUser() user: UserContext, @Param('id', IdBancoPipe) id: number, @Body() dto: UpdatePessoaDto) {
     return this.clientesService.update(user, id, dto);
   }
 
   @Delete(':id')
-  remove(@CurrentUser() user: UserContext, @Param('id') id: string) {
+  remove(@CurrentUser() user: UserContext, @Param('id', IdBancoPipe) id: number) {
     return this.clientesService.delete(user, id);
   }
 }

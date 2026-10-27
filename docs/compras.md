@@ -13,7 +13,7 @@ Não execute reset em banco com dados. O cliente pode ser atualizado com
 - `POST /fornecedores`: recebe os mesmos campos de cadastro de pessoa:
   `nome`, `email`, `cpfCnpj`, `tipo` (`FISICA` ou `JURIDICA`), e opcionais
   `telefone`/`endereco`. Cria pessoa e fornecedor em transação.
-- `POST /fornecedores/vincular`: `{ "pessoaId": "UUID" }` transforma uma pessoa
+- `POST /fornecedores/vincular`: `{ "pessoaId": 1 }` transforma uma pessoa
   já cadastrada na empresa em fornecedor, sem duplicar o cadastro.
 - `GET /fornecedores`: lista os fornecedores da empresa.
 
@@ -27,12 +27,12 @@ compra futuro. O cadastro do produto deve existir antes do recebimento.
 ```json
 {
   "referencia": "COMPRA-001",
-  "fornecedorId": "UUID",
-  "almoxarifadoId": "UUID",
+  "fornecedorId": 1,
+  "almoxarifadoId": 1,
   "dataVencimento": "2026-11-10",
   "observacao": "Reposição do estoque",
   "itens": [
-    { "produtoId": "UUID", "quantidade": 10, "valorUnitario": 12.50 }
+    { "produtoId": 1, "quantidade": 10, "valorUnitario": 12.50 }
   ],
   "acrescimos": 5,
   "desconto": 0,

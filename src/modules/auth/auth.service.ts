@@ -11,19 +11,45 @@ export class AuthService {
   constructor(private readonly prisma: PrismaService, private readonly tokens: TokensService) {}
 
   async login(dto: LoginDto) {
-    const usuario = await this.prisma.usuario.findFirst({ where: { idEmpresa: dto.idEmpresa, username: dto.username } });
+    // Resolve a empresa por CNPJ ou ID numérico. Informar os dois, ou empresa inexistente, cai na mesma resposta
+    // genérica e no mesmo custo de KDF abaixo, para não revelar quais empresas existem.
+    let idEmpresa = dto.idEmpresa;
+    if (dto.idEmpresa && dto.cnpj) idEmpresa = undefined;
+    else if (!idEmpresa && dto.cnpj) idEmpresa = (await this.prisma.empresa.findUnique({ where: { cnpj: dto.cnpj }, select: { id: true } }))?.id;
+    const usuario = idEmpresa ? await this.prisma.usuario.findFirst({ where: { idEmpresa, username: dto.username } }) : null;
     const correta = await verificarSenha(dto.senha, usuario?.password);
     if (!usuario?.ativo || !correta) throw new UnauthorizedException('Empresa, usuário ou senha inválidos.');
-    const sid = randomUUID();
     const expiraEm = new Date(Date.now() + REFRESH_SECONDS * 1000);
-    const par = await this.tokens.emitir({ sub: usuario.id, idEmpresa: usuario.idEmpresa, sid }, expiraEm);
-    await this.prisma.$transaction(async tx => {
+    return this.prisma.$transaction(async tx => {
       await tx.$queryRaw`SELECT "id" FROM "Usuario" WHERE "id" = ${usuario.id} AND "idEmpresa" = ${usuario.idEmpresa} FOR NO KEY UPDATE`;
       const atual = await tx.usuario.findFirst({ where: { id: usuario.id, idEmpresa: usuario.idEmpresa, ativo: true, password: usuario.password } });
       if (!atual) throw new UnauthorizedException('Empresa, usuário ou senha inválidos.');
-      await tx.sessaoRefresh.create({ data: { id: sid, usuarioId: usuario.id, idEmpresa: usuario.idEmpresa, tokenHash: this.tokens.hash(par.refreshToken), expiraEm } });
+      const sessao = await tx.sessaoRefresh.create({ data: { usuarioId: usuario.id, idEmpresa: usuario.idEmpresa, tokenHash: this.tokens.hash(randomUUID()), expiraEm } });
+      const par = await this.tokens.emitir({ sub: usuario.id, idEmpresa: usuario.idEmpresa, sid: sessao.id }, expiraEm);
+      await tx.sessaoRefresh.updateMany({ where: { id: sessao.id }, data: { tokenHash: this.tokens.hash(par.refreshToken) } });
+      return par;
     });
-    return par;
+  }
+
+  /** Dados de exibição para o frontend (nome, empresa, departamento) junto da identidade validada. */
+  async perfil(user: UserContext) {
+    const dados = await this.prisma.usuario.findFirst({
+      where: { id: user.id, idEmpresa: user.idEmpresa },
+      select: {
+        username: true,
+        pessoa: { select: { nome: true, email: true } },
+        empresa: { select: { id: true, nome: true, cnpj: true } },
+        departamento: { select: { id: true, nome: true, sigla: true } },
+      },
+    });
+    return {
+      ...user,
+      username: dados?.username,
+      nome: dados?.pessoa.nome,
+      email: dados?.pessoa.email,
+      empresa: dados?.empresa,
+      departamento: dados?.departamento,
+    };
   }
 
   async renovar(refreshToken: string) {

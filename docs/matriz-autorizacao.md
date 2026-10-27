@@ -1,6 +1,6 @@
 # Matriz de autorização — revisão do passo 5
 
-São 59 rotas explícitas. A matriz esperada está em `test/matriz-autorizacao.json`; o teste compara essa lista com os controllers realmente registrados no `AppModule`. Uma rota nova, removida ou com política diferente faz o teste falhar.
+São 62 rotas explícitas. A matriz esperada está em `test/matriz-autorizacao.json`; o teste compara essa lista com os controllers realmente registrados no `AppModule`. Uma rota nova, removida ou com política diferente faz o teste falhar.
 
 Para cada rota protegida, os guards são testados com ausência de identidade, permissão correta, ausência de permissão e permissão da operação oposta (leitura/escrita). HEAD herda a exigência de leitura das rotas GET. Apenas login e refresh são públicos; refresh ainda exige token válido no serviço. Métodos sem rota registrada não ganham autorização por esta matriz.
 
@@ -84,3 +84,6 @@ Os testes HTTP usam JWT e guards reais com repositório simulado: confirmam list
 | GET | `/pedidos/status/produto` | `pedidos.ler` |
 | POST | `/pedidos/status/produto` | `pedidos.gerenciar` |
 | PATCH | `/pedidos/status/produto/:id` | `pedidos.gerenciar` |
+| GET | `/estoque/saldos` | `estoque.ler` |
+| GET | `/estoque/movimentos` | `estoque.ler` |
+| GET | `/dashboard/indicadores` | `pedidos.ler` |

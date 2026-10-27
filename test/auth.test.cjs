@@ -2,7 +2,8 @@ require('ts-node/register/transpile-only');
 require('reflect-metadata');
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { randomUUID } = require('node:crypto');
+let sequencia = 0;
+const novoId = () => ++sequencia;
 const { SignJWT, decodeJwt } = require('jose');
 const { Test } = require('@nestjs/testing');
 const { ValidationPipe } = require('@nestjs/common');
@@ -29,8 +30,8 @@ function combina(row, where) {
   });
 }
 async function ambiente() {
-  const usuario = { id: randomUUID(), idEmpresa: randomUUID(), username: 'operador', password: await senhaHash, ativo: true,
-    departamentoId: randomUUID(), permissoes: [{ permissao: { nome: 'produtos.ler' } }, { permissao: { nome: 'financeiro.ler' } }],
+  const usuario = { id: novoId(), idEmpresa: novoId(), username: 'operador', password: await senhaHash, ativo: true,
+    departamentoId: novoId(), permissoes: [{ permissao: { nome: 'produtos.ler' } }, { permissao: { nome: 'financeiro.ler' } }],
     departamento: { permissoes: [{ permissao: { nome: 'produtos.ler' } }] },
   };
   const sessoes = [];
@@ -41,7 +42,7 @@ async function ambiente() {
       updateMany: async ({ where, data }) => { if (!combina(usuario, where)) return { count: 0 }; Object.assign(usuario, data); return { count: 1 }; },
     },
     sessaoRefresh: {
-      create: async ({ data }) => { const s = { revogadoEm: null, ...data }; sessoes.push(s); return s; },
+      create: async ({ data }) => { const s = { id: novoId(), revogadoEm: null, ...data }; sessoes.push(s); return s; },
       findFirst: async ({ where, include }) => { const s = sessoes.find(s => combina(s, where)); return s ? { ...s, ...(include ? { usuario } : {}) } : null; },
       updateMany: async ({ where, data }) => { const rows = sessoes.filter(s => combina(s, where)); rows.forEach(s => Object.assign(s, data)); return { count: rows.length }; },
     },
@@ -86,7 +87,7 @@ test('login rejeita senha errada, usuário inativo e empresa diferente', async (
   const a = await ambiente();
   for (const dto of [
     { idEmpresa: a.usuario.idEmpresa, username: 'operador', senha: 'errada' },
-    { idEmpresa: randomUUID(), username: 'operador', senha },
+    { idEmpresa: novoId(), username: 'operador', senha },
   ]) await assert.rejects(a.auth.login(dto), status401);
   a.usuario.ativo = false;
   await assert.rejects(a.login(), status401);
@@ -127,7 +128,7 @@ test('JWT rejeita adulteração, expiração, emissor/audiência e tipo incorret
   await assert.rejects(a.auth.autenticar(par.refreshToken), status401);
   await assert.rejects(a.auth.renovar(par.accessToken), status401);
   const partes = par.accessToken.split('.');
-  partes[1] = Buffer.from(JSON.stringify({ ...decodeJwt(par.accessToken), idEmpresa: randomUUID() })).toString('base64url');
+  partes[1] = Buffer.from(JSON.stringify({ ...decodeJwt(par.accessToken), idEmpresa: novoId() })).toString('base64url');
   await assert.rejects(a.auth.autenticar(partes.join('.')), status401);
   const claims = decodeJwt(par.accessToken);
   for (const alteracao of [{ exp: 1 }, { iss: 'outro' }, { aud: 'outro' }, { tipo: 'refresh' }, { sid: 'invalido' }]) {
@@ -152,7 +153,7 @@ test('HTTP real: headers antigos não autenticam, JWT isola tenant e permissões
   assert.equal(login.headers.get('cache-control'), 'no-store');
   const par = await login.json();
   assert.equal((await request('/produtos', { headers: { 'x-empresa-id': a.usuario.idEmpresa, 'x-user-id': a.usuario.id } })).status, 401);
-  const headers = { Authorization: `Bearer ${par.accessToken}`, 'x-empresa-id': randomUUID(), 'x-user-id': randomUUID() };
+  const headers = { Authorization: `Bearer ${par.accessToken}`, 'x-empresa-id': novoId(), 'x-user-id': novoId() };
   assert.equal((await request('/produtos', { headers })).status, 200);
   assert.equal(a.consultas.at(-1).idEmpresa, a.usuario.idEmpresa);
   assert.equal((await request('/financeiro/fluxo-caixa', { headers })).status, 403);
@@ -164,15 +165,15 @@ test('HTTP real: headers antigos não autenticam, JWT isola tenant e permissões
 });
 
 test('gestão de acessos rejeita pessoa e departamento externos e permissões fora do setor', async () => {
-  const user = { id: randomUUID(), idEmpresa: randomUUID(), departamentoId: randomUUID() };
-  const setor = { id: randomUUID(), idEmpresa: user.idEmpresa, permissoes: [{ permissao: { nome: 'produtos.ler' } }] };
-  const pessoaId = randomUUID();
+  const user = { id: novoId(), idEmpresa: novoId(), departamentoId: novoId() };
+  const setor = { id: novoId(), idEmpresa: user.idEmpresa, permissoes: [{ permissao: { nome: 'produtos.ler' } }] };
+  const pessoaId = novoId();
   let gravacoes = 0;
   const tx = {
     $queryRaw: async () => [],
     departamento: { findFirst: async ({ where }) => combina(setor, where) ? setor : null },
     pessoa: { findFirst: async () => null },
-    permissao: { upsert: async ({ where }) => ({ id: randomUUID(), nome: where.nome }) },
+    permissao: { upsert: async ({ where }) => ({ id: novoId(), nome: where.nome }) },
     usuario: {
       findFirst: async ({ where }) => where.id === user.id && where.idEmpresa === user.idEmpresa ? {
         ...user, ativo: true,
@@ -185,14 +186,14 @@ test('gestão de acessos rejeita pessoa e departamento externos e permissões fo
   const service = new AcessosService({ $transaction: fn => fn(tx) });
   const dto = { pessoaId, departamentoId: setor.id, username: 'novo', senha, permissoes: ['produtos.ler'] };
   await assert.rejects(service.criarUsuario(user, dto), e => e.getStatus() === 400);
-  await assert.rejects(service.criarUsuario(user, { ...dto, departamentoId: randomUUID() }), e => e.getStatus() === 400);
+  await assert.rejects(service.criarUsuario(user, { ...dto, departamentoId: novoId() }), e => e.getStatus() === 400);
   await assert.rejects(service.criarUsuario(user, { ...dto, permissoes: ['financeiro.gerenciar'] }), e => e.getStatus() === 400);
   assert.equal(gravacoes, 0);
 });
 test('mudança de departamento limpa permissões individuais e revoga sessões', async () => {
-  const user = { id: randomUUID(), idEmpresa: randomUUID() };
-  const alvo = { id: randomUUID(), idEmpresa: user.idEmpresa, departamentoId: randomUUID() };
-  const novoSetor = randomUUID();
+  const user = { id: novoId(), idEmpresa: novoId() };
+  const alvo = { id: novoId(), idEmpresa: user.idEmpresa, departamentoId: novoId() };
+  const novoSetor = novoId();
   const efeitos = [];
   const tx = {
     $queryRaw: async () => [],
@@ -213,7 +214,7 @@ test('mudança de departamento limpa permissões individuais e revoga sessões',
   assert.deepEqual(resultado.permissoes, []);
   assert.equal(efeitos.length, 2);
   for (const [, where] of efeitos) { assert.equal(where.usuarioId, alvo.id); assert.equal(where.idEmpresa, user.idEmpresa); }
-  await assert.rejects(service.atualizarUsuario(user, randomUUID(), { ativo: false }), e => e.getStatus() === 404);
+  await assert.rejects(service.atualizarUsuario(user, novoId(), { ativo: false }), e => e.getStatus() === 404);
 });
 test('limite de tentativas e negação por padrão de rota sem permissão', () => {
   const limite = new AuthLimiteGuard();
@@ -230,8 +231,8 @@ test('HTTP: leitura, listagem, edição e exclusão respeitam empresa mesmo com 
   const direitos = ['clientes.ler', 'clientes.gerenciar'].map(nome => ({ permissao: { nome } }));
   a.usuario.permissoes = direitos;
   a.usuario.departamento.permissoes = direitos;
-  const proprio = { id: randomUUID(), idEmpresa: a.usuario.idEmpresa, pessoaId: randomUUID() };
-  const externo = { id: randomUUID(), idEmpresa: randomUUID(), pessoaId: randomUUID() };
+  const proprio = { id: novoId(), idEmpresa: a.usuario.idEmpresa, pessoaId: novoId() };
+  const externo = { id: novoId(), idEmpresa: novoId(), pessoaId: novoId() };
   let clientes = [proprio, externo];
   const alteracoes = [];
   a.prisma.cliente = {

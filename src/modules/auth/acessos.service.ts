@@ -6,7 +6,7 @@ import { AtualizarUsuarioDto, DepartamentoDto, UsuarioDto } from './auth.dto';
 import { PERMISSOES } from './auth.decorators';
 import { hashSenha } from './senhas';
 
-const usuarioPublico = { id: true, idEmpresa: true, username: true, ativo: true, pessoaId: true, departamentoId: true, permissoes: { include: { permissao: true } } } satisfies Prisma.UsuarioSelect;
+const usuarioPublico = { id: true, idEmpresa: true, username: true, ativo: true, pessoaId: true, departamentoId: true, pessoa: { select: { nome: true, email: true } }, permissoes: { include: { permissao: true } } } satisfies Prisma.UsuarioSelect;
 
 @Injectable()
 export class AcessosService {
@@ -21,7 +21,7 @@ export class AcessosService {
   usuarios(user: UserContext) {
     return this.prisma.usuario.findMany({ where: { idEmpresa: user.idEmpresa }, select: usuarioPublico, orderBy: { username: 'asc' } });
   }
-  private async bloquearEmpresa(tx: Prisma.TransactionClient, idEmpresa: string) {
+  private async bloquearEmpresa(tx: Prisma.TransactionClient, idEmpresa: number) {
     await tx.$queryRaw`SELECT "id" FROM "Empresa" WHERE "id" = ${idEmpresa} FOR NO KEY UPDATE`;
   }
   private async permissoes(tx: Prisma.TransactionClient, nomes: string[]) {
@@ -29,7 +29,7 @@ export class AcessosService {
     const lista = [];
     // Ordem estável para não disputar o catálogo global em ordens diferentes.
     for (const nome of [...nomes].sort()) lista.push(await tx.permissao.upsert({ where: { nome }, update: {}, create: { nome } }));
-    return lista as { id: string; nome: string }[];
+    return lista as { id: number; nome: string }[];
   }
   private async autorizarConcessao(tx: Prisma.TransactionClient, user: UserContext, nomes: string[]) {
     // Releitura sob o lock da empresa: não confia nas permissões/departamento
@@ -45,7 +45,7 @@ export class AcessosService {
     }
     return gestor!;
   }
-  async definirDepartamento(user: UserContext, id: string, nomes: string[]) {
+  async definirDepartamento(user: UserContext, id: number, nomes: string[]) {
     return this.prisma.$transaction(async tx => {
       await this.bloquearEmpresa(tx, user.idEmpresa);
       const departamento = await tx.departamento.findFirst({ where: { id, idEmpresa: user.idEmpresa } });
@@ -58,7 +58,7 @@ export class AcessosService {
       return { departamentoId: id, permissoes: nomes };
     });
   }
-  private async validarDepartamento(tx: Prisma.TransactionClient, idEmpresa: string, id: string, nomes?: string[]) {
+  private async validarDepartamento(tx: Prisma.TransactionClient, idEmpresa: number, id: number, nomes?: string[]) {
     const departamento = await tx.departamento.findFirst({ where: { id, idEmpresa }, include: { permissoes: { include: { permissao: true } } } });
     if (!departamento) throw new BadRequestException('Departamento inválido para esta empresa.');
     const permitidas = new Set(departamento.permissoes.map(p => p.permissao.nome));
@@ -81,7 +81,7 @@ export class AcessosService {
       return tx.usuario.findFirstOrThrow({ where: { id: usuario.id, idEmpresa: user.idEmpresa }, select: usuarioPublico });
     });
   }
-  async definirUsuario(user: UserContext, id: string, nomes: string[]) {
+  async definirUsuario(user: UserContext, id: number, nomes: string[]) {
     if (id === user.id) throw new ForbiddenException('Suas permissões devem ser alteradas por outro gestor autorizado.');
     return this.prisma.$transaction(async tx => {
       await this.bloquearEmpresa(tx, user.idEmpresa);
@@ -96,7 +96,7 @@ export class AcessosService {
       return { usuarioId: id, permissoes: nomes };
     });
   }
-  async atualizarUsuario(user: UserContext, id: string, dto: AtualizarUsuarioDto) {
+  async atualizarUsuario(user: UserContext, id: number, dto: AtualizarUsuarioDto) {
     if (id === user.id) throw new BadRequestException('Use outro gestor para alterar seu departamento ou ativação.');
     return this.prisma.$transaction(async tx => {
       await this.bloquearEmpresa(tx, user.idEmpresa);

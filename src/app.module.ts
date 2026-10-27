@@ -9,6 +9,7 @@ import { AlmoxarifadoModule } from './modules/logistica/almoxarifado.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { ComprasModule } from './modules/compras/compras.module';
 import { PedidosModule } from './modules/pedidos/pedidos.module';
+import { DashboardModule } from './modules/dashboard/dashboard.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { PedidosModule } from './modules/pedidos/pedidos.module';
     TesourariaModule,
     ComprasModule,
     PedidosModule,
+    DashboardModule,
   ],
   controllers: [],
   providers: [],

@@ -1,5 +1,6 @@
+import { IdBanco } from '../../../common/decorators/id-banco.decorator';
 import { Type } from 'class-transformer';
-import { IsEnum, IsIn, IsInt, IsNotEmpty, IsNumber, IsOptional, IsString, IsUUID, Matches, Max, Min } from 'class-validator';
+import { IsEnum, IsIn, IsInt, IsNotEmpty, IsNumber, IsOptional, IsString, Matches, Max, Min } from 'class-validator';
 import { REGEX_DATA } from '../../../common/utils/datas';
 
 export enum TipoTransacao {
@@ -42,16 +43,16 @@ export class CreateFinanceiroDto {
   dataPagamento?: string;
 
   @IsOptional()
-  @IsUUID()
-  planoContasId?: string;
+  @IdBanco()
+  planoContasId?: number;
 
   @IsOptional()
-  @IsUUID()
-  centroCustoId?: string;
+  @IdBanco()
+  centroCustoId?: number;
 
   @IsOptional()
-  @IsUUID()
-  formaPagamentoId?: string;
+  @IdBanco()
+  formaPagamentoId?: number;
 }
 
 export class BaixaFinanceiroDto {

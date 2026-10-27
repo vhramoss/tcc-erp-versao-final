@@ -15,7 +15,7 @@ export class AuthController {
   refresh(@Body() dto: RefreshDto) { return this.auth.renovar(dto.refreshToken); }
   @Post('logout') sair(@CurrentUser() user: UserContext) { return this.auth.sair(user); }
   @Post('logout-todos') sairTodos(@CurrentUser() user: UserContext) { return this.auth.sair(user, true); }
-  @Get('me') @Header('Cache-Control', 'no-store') me(@CurrentUser() user: UserContext) { return user; }
+  @Get('me') @Header('Cache-Control', 'no-store') me(@CurrentUser() user: UserContext) { return this.auth.perfil(user); }
   @Patch('senha') @UseGuards(AuthLimiteGuard)
   senha(@CurrentUser() user: UserContext, @Body() dto: SenhaDto) { return this.auth.trocarSenha(user, dto); }
 }

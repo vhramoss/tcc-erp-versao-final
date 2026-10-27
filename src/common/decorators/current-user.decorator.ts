@@ -1,10 +1,10 @@
 import { createParamDecorator, ExecutionContext } from '@nestjs/common';
 
 export interface UserContext {
-  id: string;
-  idEmpresa: string;
-  departamentoId?: string;
-  sessaoId?: string;
+  id: number;
+  idEmpresa: number;
+  departamentoId?: number;
+  sessaoId?: number;
   permissoes?: string[];
 }
 

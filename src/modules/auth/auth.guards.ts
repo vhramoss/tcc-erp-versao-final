@@ -32,13 +32,14 @@ export class PermissoesGuard implements CanActivate {
   }
 }
 
-// Limite por processo e IP; não confia em X-Forwarded-For fornecido pelo cliente.
+// Limite por processo e IP. Usa request.ip: sem TRUST_PROXY, é o IP da conexão; atrás do BFF/proxy
+// configurado em TRUST_PROXY, é o IP real repassado pelo proxy. Nunca confia em X-Forwarded-For sem essa configuração.
 @Injectable()
 export class AuthLimiteGuard implements CanActivate {
   private readonly tentativas = new Map<string, { inicio: number; quantidade: number }>();
   canActivate(ctx: ExecutionContext) {
     const request = ctx.switchToHttp().getRequest();
-    const ip = request.socket.remoteAddress ?? 'desconhecido';
+    const ip = request.ip ?? request.socket?.remoteAddress ?? 'desconhecido';
     const agora = Date.now();
     for (const [chave, valor] of this.tentativas) if (agora - valor.inicio >= 60000) this.tentativas.delete(chave);
     const registro = this.tentativas.get(ip) ?? { inicio: agora, quantidade: 0 };

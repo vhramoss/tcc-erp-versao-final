@@ -24,7 +24,7 @@ export class StatusService {
   listarPedidos(user: UserContext) {
     return this.prisma.statusPedido.findMany({ where: { idEmpresa: user.idEmpresa }, orderBy: [{ ordem: 'asc' }, { nome: 'asc' }] });
   }
-  async atualizarPedido(user: UserContext, id: string, dto: UpdateStatusDto) {
+  async atualizarPedido(user: UserContext, id: number, dto: UpdateStatusDto) {
     return this.prisma.$transaction(async (tx) => {
       await tx.$queryRaw`SELECT "id" FROM "Empresa" WHERE "id" = ${user.idEmpresa} FOR NO KEY UPDATE`;
       const status = await tx.statusPedido.findFirst({ where: { id, idEmpresa: user.idEmpresa } });
@@ -42,7 +42,7 @@ export class StatusService {
   listarProdutos(user: UserContext) {
     return this.prisma.statusProduto.findMany({ where: { idEmpresa: user.idEmpresa }, orderBy: [{ ordem: 'asc' }, { nome: 'asc' }] });
   }
-  async atualizarProduto(user: UserContext, id: string, dto: UpdateStatusDto) {
+  async atualizarProduto(user: UserContext, id: number, dto: UpdateStatusDto) {
     const status = await this.prisma.statusProduto.findFirst({ where: { id, idEmpresa: user.idEmpresa } });
     if (!status) throw new NotFoundException('Status de item não encontrado.');
     return this.prisma.statusProduto.update({ where: { id, idEmpresa: user.idEmpresa }, data: { ...dto, ...(dto.nome != null ? { nome: dto.nome.trim() } : {}) } });

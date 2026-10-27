@@ -50,9 +50,9 @@ export class ComprasService {
         notaChave: dto.nota?.chave ?? null, notaEmissao: emissao, observacao: dto.observacao,
       } });
       await tx.itemCompra.createMany({ data: itens.map((i) => ({ ...i, idEmpresa, compraId: compra.id })) });
-      const alertas = new Map<string, object>();
+      const alertas = new Map<number, object>();
       // Ordem estável de bloqueio reduz deadlocks entre compras.
-      for (const item of [...itens].sort((a, b) => a.produtoId.localeCompare(b.produtoId))) {
+      for (const item of [...itens].sort((a, b) => a.produtoId - b.produtoId)) {
         const resultado = await this.estoque.aplicarMovimentacao(tx, { idEmpresa, usuarioId: usuario.id }, {
           produtoId: item.produtoId, almoxarifadoId: almoxarifado.id, quantidade: item.quantidade,
           tipo: TipoMovimentacao.ENTRADA, observacao: `Compra ${referencia}`, compraId: compra.id,
@@ -71,7 +71,7 @@ export class ComprasService {
   listar(user: UserContext) {
     return this.prisma.compra.findMany({ where: { idEmpresa: user.idEmpresa }, include: { fornecedor: { include: { pessoa: true } }, financeiro: true }, orderBy: { createdAt: 'desc' } });
   }
-  async buscar(user: UserContext, id: string) {
+  async buscar(user: UserContext, id: number) {
     const compra = await this.prisma.compra.findFirst({ where: { id, idEmpresa: user.idEmpresa }, include: { itens: { orderBy: { sequencia: 'asc' } }, fornecedor: { include: { pessoa: true } }, financeiro: true, movimentos: true } });
     if (!compra) throw new NotFoundException('Compra não encontrada.');
     return compra;

@@ -31,7 +31,7 @@ O seed cria a empresa de demonstração e o usuário `dev`, com permissões admi
 
 ```json
 {
-  "idEmpresa": "UUID_DA_EMPRESA",
+  "idEmpresa": 1,
   "username": "dev",
   "senha": "SENHA_CONFIGURADA_NO_SEED"
 }
@@ -101,7 +101,7 @@ Exemplo de criação de usuário, após cadastrar o departamento e autorizar sua
 {
   "username": "operador",
   "senha": "UMA_SENHA_DE_PELO_MENOS_12_CARACTERES",
-  "departamentoId": "UUID_DO_DEPARTAMENTO",
+  "departamentoId": 1,
   "permissoes": ["produtos.ler"],
   "pessoa": {
     "nome": "Operador",
@@ -123,3 +123,10 @@ Há limite conjunto de 20 chamadas por minuto/IP para login, refresh e troca de 
 Na revisão original do passo 5, schema e build foram validados e 40 testes passaram. Após a revisão de autorização, a compilação e os 107 testes passaram; veja [matriz de autorização](matriz-autorizacao.md). Os novos testes cobrem senhas, JWTs adulterados/expirados, rotação, reutilização concorrente, logout, permissões por departamento, vínculos externos e requisições HTTP reais. O banco é simulado nesses testes: não validam os locks e as migrations no PostgreSQL. Nesta sessão, não havia `.env` com `DATABASE_URL`; nenhuma migration foi aplicada ao banco.
 
 Referências técnicas: [scrypt no Node.js](https://nodejs.org/api/crypto.html#cryptoscryptpassword-salt-keylen-options-callback), [parâmetros de armazenamento de senhas — OWASP](https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html), [biblioteca jose](https://github.com/panva/jose).
+
+## Integração com o frontend (parte 6)
+
+- **Login por CNPJ.** `POST /auth/login` aceita `{ cnpj, username, senha }` (14 dígitos, somente números) ou, para integrações, `{ idEmpresa, username, senha }`. Informar os dois, ou uma empresa que não existe, responde com a mesma mensagem genérica e o mesmo custo de KDF, para não revelar quais empresas existem.
+- **`GET /auth/me`** devolve a identidade validada mais `username`, `nome`, `email`, `empresa` e `departamento`, usados pelo cabeçalho e pelo menu do frontend.
+- **IP real no limitador.** O frontend (BFF) chama a API a partir do servidor dele, então todas as requisições chegam do mesmo IP. O BFF repassa o IP do usuário em `X-Forwarded-For` e a API só o considera quando `TRUST_PROXY` está configurado (ex.: `loopback`). Sem `TRUST_PROXY`, o cabeçalho é ignorado, e o limite passa a valer para todos os usuários juntos.
+- **Custos protegidos no servidor.** `OcultarCustosInterceptor` remove `precoCusto` e `custoUnitario` de qualquer resposta para quem não tem `financeiro.ler`. O frontend nunca é o único lugar que esconde custo.

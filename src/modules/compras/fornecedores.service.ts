@@ -12,7 +12,7 @@ export class FornecedoresService {
       return tx.fornecedor.create({ data: { pessoaId: pessoa.id, idEmpresa: user.idEmpresa }, include: { pessoa: true } });
     });
   }
-  async vincular(user: UserContext, pessoaId: string) {
+  async vincular(user: UserContext, pessoaId: number) {
     const pessoa = await this.prisma.pessoa.findFirst({ where: { id: pessoaId, idEmpresa: user.idEmpresa } });
     if (!pessoa) throw new NotFoundException('Pessoa não encontrada nesta empresa.');
     return this.prisma.fornecedor.create({ data: { pessoaId, idEmpresa: user.idEmpresa }, include: { pessoa: true } });

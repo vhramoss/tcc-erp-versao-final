@@ -1,3 +1,4 @@
+import { IdBanco } from '../../../common/decorators/id-banco.decorator';
 import { Type } from 'class-transformer';
 import { IsEnum, IsNotEmpty, IsNumber, IsString, Min } from 'class-validator';
 
@@ -7,14 +8,12 @@ export enum TipoMovimentacao {
 }
 
 export class CreateMovimentacaoDto {
-  @IsString()
-  @IsNotEmpty()
-  produtoId: string;
+  @IdBanco()
+  produtoId: number;
 
   // O saldo é controlado por produto e almoxarifado.
-  @IsString()
-  @IsNotEmpty()
-  almoxarifadoId: string;
+  @IdBanco()
+  almoxarifadoId: number;
 
   @Type(() => Number)
   @IsNumber({ maxDecimalPlaces: 3 })

@@ -18,24 +18,24 @@ export interface MovimentacaoResponse {
   sucesso: boolean;
   /** Novo saldo do produto NO almoxarifado movimentado. */
   novoSaldo: number;
-  almoxarifadoId: string;
+  almoxarifadoId: number;
   alerta?: EstoqueAlerta;
 }
 
 export interface ContextoMovimentacao {
-  idEmpresa: string;
-  usuarioId: string;
+  idEmpresa: number;
+  usuarioId: number;
 }
 
 export interface DadosMovimentacao {
-  produtoId: string;
-  almoxarifadoId: string;
+  produtoId: number;
+  almoxarifadoId: number;
   quantidade: Decimal.Value;
   tipo: TipoMovimentacao;
   observacao: string;
   /** Preenchido quando a movimentação nasce de um pedido (permite rastrear e estornar). */
-  pedidoId?: string;
-  compraId?: string;
+  pedidoId?: number;
+  compraId?: number;
 }
 
 @Injectable()

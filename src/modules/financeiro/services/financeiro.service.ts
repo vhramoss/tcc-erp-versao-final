@@ -30,14 +30,14 @@ export interface FluxoCaixaResumo {
 }
 
 export interface ReceitaDePedidoInput {
-  idEmpresa: string;
-  pedidoId: string;
+  idEmpresa: number;
+  pedidoId: number;
   valor: Decimal.Value;
   dataVencimento: Date;
   descricao: string;
-  formaPagamentoId?: string;
-  planoContasId?: string;
-  centroCustoId?: string;
+  formaPagamentoId?: number;
+  planoContasId?: number;
+  centroCustoId?: number;
 }
 
 @Injectable()
@@ -119,7 +119,7 @@ export class FinanceiroService {
 
   // ---------------------------------------------------------------- baixa e cancelamento
 
-  async darBaixa(user: UserContext, id: string, dataPagamento?: string) {
+  async darBaixa(user: UserContext, id: number, dataPagamento?: string) {
     const pagamento = this.dataPagamento(dataPagamento);
     const transacao = await this.buscar(user.idEmpresa, id);
     if (transacao.status === StatusTransacao.PAGO) throw new BadRequestException('Esta transação já está paga/recebida.');
@@ -135,7 +135,7 @@ export class FinanceiroService {
     return this.buscar(user.idEmpresa, id);
   }
 
-  async cancelar(user: UserContext, id: string) {
+  async cancelar(user: UserContext, id: number) {
     const transacao = await this.buscar(user.idEmpresa, id);
     if (transacao.pedidoId) {
       throw new BadRequestException('Este lançamento pertence a um pedido. Cancele o pedido para cancelar o lançamento.');
@@ -210,7 +210,7 @@ export class FinanceiroService {
   }
 
   /** Cancela o lançamento do pedido dentro da transação de cancelamento do pedido. */
-  async cancelarDoPedido(tx: Prisma.TransactionClient, idEmpresa: string, pedidoId: string) {
+  async cancelarDoPedido(tx: Prisma.TransactionClient, idEmpresa: number, pedidoId: number) {
     const transacao = await tx.transacaoFinanceira.findFirst({ where: { pedidoId, idEmpresa } });
     if (!transacao) throw new BadRequestException('O pedido não possui lançamento financeiro para cancelar.');
     if (transacao.status === StatusTransacao.PAGO) {
@@ -228,7 +228,7 @@ export class FinanceiroService {
 
   // ---------------------------------------------------------------- auxiliares
 
-  private async buscar(idEmpresa: string, id: string) {
+  private async buscar(idEmpresa: number, id: number) {
     const transacao = await this.prisma.transacaoFinanceira.findFirst({ where: { id, idEmpresa } });
     if (!transacao) throw new NotFoundException('Transação financeira não encontrada.');
     return transacao;
@@ -247,8 +247,8 @@ export class FinanceiroService {
 
   /** Garante que plano de contas, centro de custo e forma de pagamento são da empresa do usuário. */
   private async validarVinculos(
-    idEmpresa: string,
-    v: { tipo: TipoTransacao; planoContasId?: string; centroCustoId?: string; formaPagamentoId?: string },
+    idEmpresa: number,
+    v: { tipo: TipoTransacao; planoContasId?: number; centroCustoId?: number; formaPagamentoId?: number },
     db: Prisma.TransactionClient = this.prisma,
   ) {
     const [plano, centro, forma] = await Promise.all([

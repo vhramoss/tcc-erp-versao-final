@@ -106,7 +106,7 @@ async function main() {
     { nome: 'Entregue', ordem: 3, ehInicial: false, ehFinal: true, ehCancelamento: false },
     { nome: 'Cancelado', ordem: 4, ehInicial: false, ehFinal: true, ehCancelamento: true },
   ];
-  const statusPedidos: Record<string, string> = {};
+  const statusPedidos: Record<string, number> = {};
   for (const st of statusPadrao) {
     const criado = await prisma.statusPedido.upsert({
       where: { idEmpresa_nome: { idEmpresa, nome: st.nome } },
@@ -116,7 +116,7 @@ async function main() {
     statusPedidos[st.nome] = criado.id;
   }
 
-  const statusProdutos: Record<string, string> = {};
+  const statusProdutos: Record<string, number> = {};
   for (const [i, nome] of ['Pendente', 'Separado', 'Entregue'].entries()) {
     const criado = await prisma.statusProduto.upsert({
       where: { idEmpresa_nome: { idEmpresa, nome } },

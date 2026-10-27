@@ -9,22 +9,22 @@ O módulo utiliza `Pedido`, `ItemPedido` (equivalente ao PedidoProduto do escopo
 ```json
 {
   "referencia": "VENDA-001",
-  "clienteId": "UUID_DO_CLIENTE",
-  "almoxarifadoId": "UUID_DO_ALMOXARIFADO",
+  "clienteId": 1,
+  "almoxarifadoId": 1,
   "dataVencimento": "2026-11-20",
   "itens": [
-    { "produtoId": "UUID_DO_PRODUTO", "quantidade": 2 }
+    { "produtoId": 1, "quantidade": 2 }
   ]
 }
 ```
 
-Use UUIDs reais da mesma empresa. Cliente, usuário, produtos, almoxarifado e status precisam estar cadastrados, e o depósito deve ter saldo suficiente. A referência é única por empresa: repetir a criação com a mesma referência retorna conflito, sem duplicar efeitos.
+Use IDs numéricos reais da mesma empresa. Cliente, usuário, produtos, almoxarifado e status precisam estar cadastrados, e o depósito deve ter saldo suficiente. A referência é única por empresa: repetir a criação com a mesma referência retorna conflito, sem duplicar efeitos.
 
 Campos opcionais: `referencia`, `statusId`, `formaPagamentoId`, `planoContasId`, `centroCustoId`, `observacao`; cada item também aceita `statusId`. Sem status explícito, usa o status inicial ativo do pedido e o primeiro status de item ativo por ordem, nome e ID. O status inicial não pode encerrar nem cancelar o pedido. A resposta inclui `alertas` de estoque mínimo, respeitando a opção de monitoramento de cada produto.
 
 O preço vem de `PrecoProduto`, tabela `Padrão`, da mesma empresa. Sem preço cadastrado, com preço não positivo ou inferior a `Produto.precoCusto`, a venda é recusada. `valorUnitario` é opcional na requisição: se enviado, deve coincidir com o cadastro, servindo apenas como confirmação. Não permite desconto ou substituição do preço. O item guarda `custoUnitario` no momento da venda, preservando a base de margem bruta histórica mesmo após mudança do custo cadastrado. Isso não representa custo médio contábil nem lucro líquido.
 
-Sem `referencia`, o servidor gera `PED-<UUID>`. Não é uma sequência numérica. Para repetir uma requisição com segurança após perda de resposta, informe e reutilize uma referência própria: duas requisições sem referência são duas vendas distintas.
+Sem `referencia`, o servidor gera `PED-000001`, usando o ID incremental do banco (sequência global da tabela, com possíveis intervalos). Para repetir uma requisição com segurança após perda de resposta, informe e reutilize uma referência própria: duas requisições sem referência são duas vendas distintas.
 
 ## Consultas e status
 
@@ -32,7 +32,7 @@ Sem `referencia`, o servidor gera `PED-<UUID>`. Não é uma sequência numérica
 | --- | --- | --- |
 | GET | `/pedidos` | Listagem com filtros `statusId`, `clienteId`, `dataInicio`, `dataFim`, `page`, `limit` |
 | GET | `/pedidos/:id` | Pedido com itens, status, cliente e financeiro |
-| PATCH | `/pedidos/:id/status` | Corpo `{ "statusId": "UUID" }` |
+| PATCH | `/pedidos/:id/status` | Corpo `{ "statusId": 1 }` |
 | PATCH | `/pedidos/:id/itens/:itemId/status` | Mesmo corpo, altera o status do item |
 | POST/GET | `/pedidos/status/pedido` | Criar/listar status de pedido |
 | PATCH | `/pedidos/status/pedido/:id` | Editar nome, ordem e ativo |

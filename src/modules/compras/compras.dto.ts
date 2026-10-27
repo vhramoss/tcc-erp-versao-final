@@ -1,9 +1,10 @@
+import { IdBanco } from '../../common/decorators/id-banco.decorator';
 import { Type } from 'class-transformer';
-import { ArrayMaxSize, ArrayMinSize, IsArray, IsNotEmpty, IsNumber, IsOptional, IsString, IsUUID, Matches, Max, MaxLength, Min, ValidateNested } from 'class-validator';
+import { ArrayMaxSize, ArrayMinSize, IsArray, IsNotEmpty, IsNumber, IsOptional, IsString, Matches, Max, MaxLength, Min, ValidateNested } from 'class-validator';
 import { REGEX_DATA } from '../../common/utils/datas';
 
 export class ItemCompraDto {
-  @IsUUID() produtoId: string;
+  @IdBanco() produtoId: number;
   @Type(() => Number) @IsNumber({ maxDecimalPlaces: 3 }) @Min(0.001) @Max(999999999.999) quantidade: number;
   @Type(() => Number) @IsNumber({ maxDecimalPlaces: 10 }) @Min(0) @Max(99999999999) valorUnitario: number;
 }
@@ -17,10 +18,10 @@ export class NotaEntradaDto {
 
 export class BaseCompraDto {
   @IsString() @IsNotEmpty() @MaxLength(100) referencia: string;
-  @IsUUID() fornecedorId: string;
-  @IsUUID() almoxarifadoId: string;
+  @IdBanco() fornecedorId: number;
+  @IdBanco() almoxarifadoId: number;
   @Matches(REGEX_DATA) dataVencimento: string;
-  @IsOptional() @IsUUID() formaPagamentoId?: string;
+  @IsOptional() @IdBanco() formaPagamentoId?: number;
   @IsOptional() @IsString() @MaxLength(1000) observacao?: string;
 }
 

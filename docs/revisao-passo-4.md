@@ -1,6 +1,6 @@
 # Revisão do passo 4 contra o PDF
 
-Registro histórico anterior ao passo 5. A autenticação descrita como pendente abaixo foi implementada posteriormente; consulte [autenticação e permissões](autenticacao.md) para o estado atual.
+Registro histórico anterior ao passo 5. A geração de IDs também foi substituída posteriormente; consulte [IDs incrementais](ids-incrementais.md). A autenticação descrita como pendente abaixo foi implementada posteriormente; consulte [autenticação e permissões](autenticacao.md) para o estado atual.
 
 Referência: `ERP_Mateus_Victor-2.pdf`, justificativa (p. 13), objetivos (seção 3.2) e segurança (seção 4.6). O PDF permanece inalterado.
 

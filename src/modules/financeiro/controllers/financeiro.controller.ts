@@ -1,5 +1,6 @@
+import { IdBancoPipe } from '../../../common/decorators/id-banco.decorator';
 import { Recurso } from '../../auth/auth.decorators';
-import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import { CurrentUser, UserContext } from '../../../common/decorators/current-user.decorator';
 import { BaixaFinanceiroDto, CreateFinanceiroDto, FiltroFluxoCaixaDto, FiltroTransacoesDto } from '../dto/financeiro.dto';
 import { FinanceiroService } from '../services/financeiro.service';
@@ -20,12 +21,12 @@ export class FinanceiroController {
   }
 
   @Patch('baixa/:id')
-  darBaixa(@CurrentUser() user: UserContext, @Param('id', ParseUUIDPipe) id: string, @Body() dto: BaixaFinanceiroDto) {
+  darBaixa(@CurrentUser() user: UserContext, @Param('id', IdBancoPipe) id: number, @Body() dto: BaixaFinanceiroDto) {
     return this.financeiroService.darBaixa(user, id, dto?.dataPagamento);
   }
 
   @Patch('cancelar/:id')
-  cancelar(@CurrentUser() user: UserContext, @Param('id', ParseUUIDPipe) id: string) {
+  cancelar(@CurrentUser() user: UserContext, @Param('id', IdBancoPipe) id: number) {
     return this.financeiroService.cancelar(user, id);
   }
 

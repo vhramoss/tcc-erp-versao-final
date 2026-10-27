@@ -5,7 +5,7 @@ const assert = require('node:assert/strict');
 const { EstoqueService } = require('../src/modules/estoque/estoque.service.ts');
 const { ComprasService } = require('../src/modules/compras/compras.service.ts');
 const { FinanceiroService } = require('../src/modules/financeiro/services/financeiro.service.ts');
-const user = { id: 'usuario-a', idEmpresa: 'empresa-a' };
+const user = { id: 1, idEmpresa: 1 };
 const fornecedorCnpj = '98765432000198';
 
 // Repositório em memória com snapshot por transação. Exercita os serviços reais;
@@ -13,15 +13,15 @@ const fornecedorCnpj = '98765432000198';
 function ambiente() {
   let estado = { compras: [], itensCompra: [], saldos: {}, movimentos: [], financeiros: [] };
   const config = { falharFinanceiro: false, fornecedorOutraEmpresa: false };
-  const produtos = ['p1', 'p2'].map((id) => ({ id, idEmpresa: user.idEmpresa, nome: id, estoqueMinimo: '0', alertaEstoqueAtivo: true, unidadeMedida: { sigla: 'UN' } }));
+  const produtos = [2, 10].map((id) => ({ id, idEmpresa: user.idEmpresa, nome: id, estoqueMinimo: '0', alertaEstoqueAtivo: true, unidadeMedida: { sigla: 'UN' } }));
   const unico = (lista, data, campo = 'referencia') => {
     if (lista.some((i) => i.idEmpresa === data.idEmpresa && i[campo] === data[campo])) throw new Error('Duplicado');
-    const item = { ...data, id: `${campo}-${lista.length + 1}` }; lista.push(item); return item;
+    const item = { ...data, id: lista.length + 1 }; lista.push(item); return item;
   };
   const repositorio = () => ({
     usuario: { findFirst: async ({ where }) => where.id === user.id && where.idEmpresa === user.idEmpresa ? user : null },
-    fornecedor: { findFirst: async ({ where }) => !config.fornecedorOutraEmpresa && where.idEmpresa === user.idEmpresa ? { id: 'fornecedor', pessoa: { cpfCnpj: fornecedorCnpj } } : null },
-    almoxarifado: { findFirst: async ({ where }) => where.idEmpresa === user.idEmpresa ? { id: 'deposito', nome: 'Depósito' } : null },
+    fornecedor: { findFirst: async ({ where }) => !config.fornecedorOutraEmpresa && where.idEmpresa === user.idEmpresa ? { id: 1, pessoa: { cpfCnpj: fornecedorCnpj } } : null },
+    almoxarifado: { findFirst: async ({ where }) => where.idEmpresa === user.idEmpresa ? { id: 1, nome: 'Depósito' } : null },
     produto: {
       findFirst: async ({ where }) => produtos.find((p) => p.id === where.id && p.idEmpresa === where.idEmpresa),
       findMany: async ({ where }) => produtos.filter((p) => p.idEmpresa === where.idEmpresa && where.id.in.includes(p.id)),
@@ -52,14 +52,14 @@ function ambiente() {
   const estoque = new EstoqueService(prisma);
   return { compras: new ComprasService(prisma, estoque), estado: () => estado, config };
 }
-const compra = (overrides = {}) => ({ referencia: 'C-1', fornecedorId: 'fornecedor', almoxarifadoId: 'deposito', dataVencimento: '2026-10-30', itens: [{ produtoId: 'p1', quantidade: 2, valorUnitario: 10.25 }], ...overrides });
+const compra = (overrides = {}) => ({ referencia: 'C-1', fornecedorId: 1, almoxarifadoId: 1, dataVencimento: '2026-10-30', itens: [{ produtoId: 2, quantidade: 2, valorUnitario: 10.25 }], ...overrides });
 
 
 test('compra recebida registra itens, aumenta estoque e gera conta a pagar exata', async () => {
   const a = ambiente();
   const resposta = await a.compras.criar(user, compra({ acrescimos: 2, desconto: 0.50 }));
   assert.equal(resposta.valorTotal, '22.00');
-  assert.equal(a.estado().saldos.p1.quantidade, '2.000');
+  assert.equal(a.estado().saldos[2].quantidade, '2.000');
   assert.equal(a.estado().movimentos[0].compraId, resposta.id);
   assert.equal(a.estado().itensCompra[0].idEmpresa, user.idEmpresa);
   assert.equal(a.estado().financeiros[0].valor, '22.00');
@@ -78,13 +78,13 @@ test('fornecedor e produto de outra empresa não geram compra nem estoque', asyn
   const a = ambiente(); a.config.fornecedorOutraEmpresa = true;
   await assert.rejects(a.compras.criar(user, compra()), (e) => e.getStatus() === 400);
   a.config.fornecedorOutraEmpresa = false;
-  await assert.rejects(a.compras.criar(user, compra({ itens: [{ produtoId: 'externo', quantidade: 1, valorUnitario: 10 }] })), (e) => e.getStatus() === 400);
+  await assert.rejects(a.compras.criar(user, compra({ itens: [{ produtoId: 999, quantidade: 1, valorUnitario: 10 }] })), (e) => e.getStatus() === 400);
   assert.equal(a.estado().compras.length, 0);
 });
 test('referência repetida não duplica estoque ou financeiro', async () => {
   const a = ambiente(); await a.compras.criar(user, compra());
   await assert.rejects(a.compras.criar(user, compra()), /Duplicado/);
-  assert.equal(a.estado().saldos.p1.quantidade, '2.000');
+  assert.equal(a.estado().saldos[2].quantidade, '2.000');
   assert.equal(a.estado().financeiros.length, 1);
 });
 test('datas inválidas e total negativo são rejeitados', async () => {
